@@ -99,17 +99,21 @@ def decide(species_conf, genus_conf, t_genus, t_species):
 
 
 def utility(levels, species_ok, genus_ok, in_catalog, weights=None):
-    """Per-observation utility of the decision taken."""
+    """Per-observation utility of the decision taken. Vectorised: threshold
+    fitting evaluates this tens of thousands of times."""
     w = {**UTILITY, **(weights or {})}
-    u = np.empty(len(levels))
-    for i, level in enumerate(levels):
-        if level == DECLINE:
-            u[i] = w["decline_in_catalog"] if in_catalog[i] else w["decline_ood"]
-        elif level == SPECIES:
-            u[i] = w["species_correct"] if species_ok[i] else w["wrong"]
-        else:
-            u[i] = w["genus_correct"] if genus_ok[i] else w["wrong"]
-    return u
+    levels = np.asarray(levels, dtype=object)
+    species_ok = np.asarray(species_ok, bool)
+    genus_ok = np.asarray(genus_ok, bool)
+    in_catalog = np.asarray(in_catalog, bool)
+
+    is_dec, is_sp = levels == DECLINE, levels == SPECIES
+    is_gn = ~is_dec & ~is_sp
+    return (
+        is_dec * np.where(in_catalog, w["decline_in_catalog"], w["decline_ood"])
+        + is_sp * np.where(species_ok, w["species_correct"], w["wrong"])
+        + is_gn * np.where(genus_ok, w["genus_correct"], w["wrong"])
+    )
 
 
 def fit_thresholds(species_conf, genus_conf, species_ok, genus_ok, in_catalog,

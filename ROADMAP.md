@@ -232,15 +232,32 @@ response to that failure, and it is the user-facing half of the accuracy story.
   95% probability"). This is exactly the abstain machinery the UX needs.
 - Deliverable: the precision-vs-coverage curve that defines the product claim.
 
-## Phase 8 — Geographic + seasonal prior (large win, ~zero cost)
+## Phase 8 — Geographic prior — **MEASURED AND REJECTED as a gate**
 
-Device location + date is free at inference and enormously informative: a
-species list narrowed to what actually grows near the user, in season, can cut
-the effective label space by an order of magnitude. Implement as a Bayesian
-prior over the 1000-way posterior using GBIF occurrence density.
+> Closed. See [`LOCATION_FINDINGS.md`](LOCATION_FINDINGS.md). This was billed
+> below as "likely the single highest accuracy-per-effort item in the entire
+> plan". It is not, in the form tested.
 
-This is likely the single highest accuracy-per-effort item in the entire plan,
-and it is pure metadata — no model training at all.
+Device location narrows the label space 2.7x in European cities and up to 9.5x
+in North American ones, and the signal is genuinely biological — shuffling
+coordinates within a bucket collapses it from 0.715 AUROC to 0.511. It adds
++0.023 AUROC on near-OOD, the weakest case, and is partly independent of the
+vision scores (r = 0.33 against genus confidence).
+
+But as a **gate** — withholding or generalising an answer, never renaming, per
+the product decision — it buys **+0.0069 expected utility, 95% CI
+[−0.0025, +0.0220]**. The interval includes zero and the pre-registered rule
+says do not ship. It fails because the vision thresholds are already
+conservative enough that the gate only changes 0.3–2.9% of decisions: the AUROC
+gain lands where the operating point never looks.
+
+**What remains open is re-ranking.** 62% of species errors named a locally
+implausible species while the truth was locally plausible — a 5.4pp accuracy
+ceiling reachable only by letting location change the name, which was ruled out
+on product grounds before the number was known. Revisiting that, especially
+re-ranking only *within* a genus, is the live question.
+
+Seasonality (date) was never tested and remains unexplored.
 
 ---
 
