@@ -38,7 +38,7 @@ HEADERS = {"User-Agent": "plantid-research/0.1 (species identification evaluatio
 MANIFEST = "inat_observations.parquet"
 IMAGES_DIR = "images_inat"
 MIN_PHOTOS = 2
-MAX_PHOTOS = 4
+MAX_PHOTOS = 6
 SLEEP = 1.1  # be polite: iNat asks for <= 60 requests/minute
 
 
@@ -54,7 +54,7 @@ def _get(params, retries=3):
     return {"results": []}
 
 
-def _rows(results, bucket, catalog_species, catalog_genera):
+def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTOS):
     out = []
     for o in results:
         taxon = o.get("taxon") or {}
@@ -72,48 +72,55 @@ def _rows(results, bucket, catalog_species, catalog_genera):
         if bucket == "distant_ood" and (in_sp or in_gen):
             continue
         photos = [p["url"].replace("square", "medium") for p in o.get("photos", [])][:MAX_PHOTOS]
-        if len(photos) < MIN_PHOTOS:
+        if len(photos) < min_photos:
             continue
         out.append({"obs_id": o["id"], "species_name": name, "genus": genus,
                     "bucket": bucket, "photo_urls": photos})
     return out
 
 
-def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0):
+def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS):
+    """Collect observations per bucket. `min_photos` filters at fetch time, so
+    raising it means querying more broadly rather than discarding later."""
     rows = []
+    have = lambda b: len([r for r in rows if r["bucket"] == b])  # noqa: E731
 
-    # in-catalog: query species by species, two observations each
-    species = sorted(catalog_species)
-    rng = pd.Series(species).sample(min(len(species), per_bucket), random_state=seed)
-    for name in rng:
+    # in-catalog: query species by species
+    for name in pd.Series(sorted(catalog_species)).sample(len(catalog_species), random_state=seed):
+        if have("in_catalog") >= per_bucket:
+            break
         j = _get({"taxon_name": name, "quality_grade": "research", "photos": "true",
-                  "per_page": 10, "locale": "en"})
-        rows += _rows(j.get("results", []), "in_catalog", catalog_species, catalog_genera)[:2]
+                  "per_page": 30, "locale": "en"})
+        rows += _rows(j.get("results", []), "in_catalog", catalog_species, catalog_genera, min_photos)[:3]
         time.sleep(SLEEP)
-        if len([r for r in rows if r["bucket"] == "in_catalog"]) >= per_bucket:
-            break
 
-    # OOD buckets: sample plants at random and filter into near / distant
-    page = 1
-    while True:
-        counts = {b: len([r for r in rows if r["bucket"] == b]) for b in ("near_ood", "distant_ood")}
-        if min(counts.values()) >= per_bucket or page > 40:
+    # near-OOD is rare under random sampling (genus in catalog, species not), so
+    # query the catalog's *genera* directly and drop the catalog species.
+    for genus in pd.Series(sorted(catalog_genera)).sample(len(catalog_genera), random_state=seed):
+        if have("near_ood") >= per_bucket:
             break
+        j = _get({"taxon_name": genus, "quality_grade": "research", "photos": "true",
+                  "per_page": 60, "locale": "en"})
+        rows += _rows(j.get("results", []), "near_ood", catalog_species, catalog_genera, min_photos)[:4]
+        time.sleep(SLEEP)
+
+    # distant-OOD: random plants, neither species nor genus in the catalog
+    page = 1
+    while have("distant_ood") < per_bucket and page <= 60:
         j = _get({"taxon_id": PLANTAE, "quality_grade": "research", "photos": "true",
                   "per_page": 200, "page": page, "order_by": "random", "locale": "en"})
         res = j.get("results", [])
         if not res:
             break
-        for b in ("near_ood", "distant_ood"):
-            if counts[b] < per_bucket:
-                rows += _rows(res, b, catalog_species, catalog_genera)[: per_bucket - counts[b]]
+        rows += _rows(res, "distant_ood", catalog_species, catalog_genera, min_photos)[
+            : per_bucket - have("distant_ood")]
         page += 1
         time.sleep(SLEEP)
 
     return pd.DataFrame(rows).drop_duplicates(subset=["obs_id"])
 
 
-def download(df, out_dir, max_workers=16):
+def download(df, out_dir, max_workers=16, min_photos=MIN_PHOTOS):
     out_dir.mkdir(parents=True, exist_ok=True)
     jobs = [(r.obs_id, i, url) for r in df.itertuples() for i, url in enumerate(r.photo_urls)]
 
@@ -136,12 +143,13 @@ def download(df, out_dir, max_workers=16):
     df = df.copy()
     df["local_paths"] = [[ok[(r.obs_id, i)] for i in range(len(r.photo_urls)) if (r.obs_id, i) in ok]
                          for r in df.itertuples()]
-    return df[df["local_paths"].map(len) >= MIN_PHOTOS]
+    return df[df["local_paths"].map(len) >= min_photos]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-bucket", type=int, default=150)
+    ap.add_argument("--min-photos", type=int, default=MIN_PHOTOS)
     ap.add_argument("--no-download", action="store_true")
     args = ap.parse_args()
 
@@ -150,11 +158,11 @@ def main():
     genera = {n.split()[0] for n in species}
     print(f"catalog: {len(species)} species, {len(genera)} genera")
 
-    df = fetch(species, genera, per_bucket=args.per_bucket)
+    df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos)
     print(df.groupby("bucket").size().to_string())
 
     if not args.no_download:
-        df = download(df, DATA_PROCESSED / IMAGES_DIR)
+        df = download(df, DATA_PROCESSED / IMAGES_DIR, min_photos=args.min_photos)
         print(f"after download: {len(df)} observations, {df['local_paths'].map(len).sum()} photos")
         print(df.groupby("bucket").size().to_string())
 

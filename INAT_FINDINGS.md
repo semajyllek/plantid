@@ -1,4 +1,4 @@
-# Real multi-organ observations: fusion's benefit largely disappears
+# Real multi-organ observations: fusion helps accuracy, not rejection
 
 The last big unvalidated claim in this repo. Every fusion number here rests on
 **synthetic** groups — one leaf, one bark, one flower drawn independently from
@@ -61,28 +61,67 @@ Organ diversity helps a little — +0.013 versus −0.005 on distant OOD — but
 an order of magnitude short of the synthetic-group gain. **The conditional-
 independence assumption was doing most of the work.**
 
+## Round 2: more photos, forced organ diversity
+
+Round 1 had mean 2.7 photos/observation and only 90 observations met "≥3 photos
+and ≥2 organs" (14 near-OOD — unusable). Refetched with `min_photos=3`,
+`MAX_PHOTOS` raised to 6, and near-OOD queried by catalog *genus* rather than
+random sampling: **696 observations, 2,627 photos, mean 3.77 each** — near-OOD
+went from 78 to 175.
+
+| filter | n | input | species | genus | distant-OOD | near-OOD |
+|---|---|---|---|---|---|---|
+| all (≥2 photos) | 696 | single | 0.835 | 0.958 | 0.920 | 0.832 |
+| | | **fused** | **0.877** | **0.977** | 0.924 | 0.840 |
+| ≥3 photos, ≥2 organs | 405 | single | 0.853 | 0.968 | 0.939 | 0.861 |
+| | | **fused** | **0.885** | **0.981** | 0.945 | 0.860 |
+| ≥3 photos, ≥2 organs, router conf ≥0.6 | 280 | single | 0.833 | 0.963 | 0.937 | 0.838 |
+| | | **fused** | **0.889** | **0.981** | 0.940 | 0.830 |
+| ≥4 photos, ≥2 organs | 199 | single | 0.849 | 0.973 | 0.955 | 0.872 |
+| | | **fused** | **0.890** | **1.000** | 0.953 | 0.865 |
+
+### The split: fusion helps accuracy, not rejection
+
+**Rejection gain is ~zero and does not improve with better conditions.** Across
+every filter, distant-OOD moves +0.006 / +0.003 / −0.002 and near-OOD moves
+−0.001 / −0.008 / −0.007. Giving fusion its best case — more photos, confirmed
+organ diversity — does not rescue it. The synthetic-group gain of +0.04 to +0.11
+is not there.
+
+**Accuracy gain is real and consistent: +3 to +6pp species, +2pp genus.**
+0.853 → 0.885 at ≥3 photos/≥2 organs, 0.833 → 0.889 under the strict router
+filter, and genus reaches 1.000 at ≥4 photos.
+
+This **corrects round 1**, which reported species 0.913 → 0.907 (flat-to-down)
+on 150 in-catalog observations. At 261 observations spanning more species, the
+species gain from fusion is consistently positive. Round 1's absolute levels
+were also inflated by sampling a smaller, easier species set — 0.835 here versus
+0.913 there is the more representative number.
+
 ## What this means
 
-1. **The multi-organ fusion premise is much weaker than this repo believed.**
-   The claim that "three views give three chances to notice nothing matches"
+1. **The multi-organ fusion premise fails for rejection.** The claim that
+   "three views give three chances to notice nothing matches"
    (`OPENSET_FINDINGS.md`) was measured on groups constructed to be independent.
-   On real correlated photos the effect is ~+0.01, not ~+0.10.
-2. **Guided capture is still defensible, but not on these grounds.** Its real
-   value is photo *quality* control (framing, focus, subject isolation) and
-   knowing which organ the user is photographing — not a large fusion gain in
-   rejection. The case for it should be made on quality, not on fusion.
-3. **Rejection itself holds up well on real data** — distant-OOD AUROC 0.943
-   from a *single* photo, near-OOD 0.883. That is the encouraging half of this
-   result: the `__OTHER__` mechanism transfers to a genuinely different source.
-4. **Near-OOD remains the hard case** (0.883 vs 0.943), consistent with every
-   other experiment here, and reinforces the genus-level fallback
-   (`HIERARCHY_FINDINGS.md`) as the right answer for it — note genus accuracy
-   reaches 1.000 fused.
+   On real correlated photos the effect is ~0, even with ≥4 photos and confirmed
+   organ diversity.
+2. **But multi-photo capture is justified on accuracy**: +3 to +6pp species and
+   +2pp genus, consistently across filters. So guided capture should be built —
+   the case for it is accuracy and photo quality, not rejection.
+3. **Rejection is a single-photo capability, and it transfers.** Distant-OOD
+   AUROC is 0.92–0.96 from one photo on a genuinely different source, and fusing
+   adds nothing. The `__OTHER__` reject class, not the number of views, is what
+   makes "I don't know" work.
+4. **Near-OOD remains the hard case** (0.83–0.87 vs 0.92–0.96), consistent with
+   every other experiment here, and reinforces the genus-level fallback
+   (`HIERARCHY_FINDINGS.md`) as the right answer for it — genus accuracy is
+   0.977–1.000 fused even where species is 0.88.
 
-## Caveats — the accuracy numbers are inflated
+## Caveats — the accuracy levels are inflated
 
-Species accuracy here (0.913) is **well above our own catalog test set**
-(0.759–0.808). Two reasons, both pushing the same way:
+Round-2 species accuracy (0.835–0.890) still sits **above our own catalog test
+set** (0.759–0.808), and round 1's 0.913 was higher still. Two reasons, both
+pushing the same way:
 
 - **Sampling bias**: in-catalog observations were found by querying species
   names, so they skew toward common, heavily-photographed, easy species.
@@ -90,18 +129,21 @@ Species accuracy here (0.913) is **well above our own catalog test set**
   BioCLIP-2 was trained on (`DATA_STRATEGY.md`). These exact photos may be in
   the encoder's training data.
 
-So treat 0.913 / 1.000 as upper bounds. **The fusion comparison is the reliable
-part** — single and fused are affected identically by both biases, so the
+So treat the levels as upper bounds. **The single-vs-fused comparison is the
+reliable part** — both arms are affected identically by both biases, so the
 *difference* between them is sound even though the levels are not.
 
-Other limits: 141 observations with 2+ distinct organs is a modest n; the router
-is 79% accurate so "organ diversity" is noisy; mean 2.7 photos per observation
-is fewer than a guided flow would collect.
+Other limits: the router is 79% accurate, so "distinct organs" is noisy at
+argmax — hence the `router-conf ≥0.6` row, which tells the same story on a
+cleaner but smaller sample (n=280). The ≥4-photo row is n=199, so its −0.002
+distant-OOD gain is well within noise; the point is that it is not *positive*.
 
 ## Follow-ups
 
-- Re-run with observations filtered to ≥3 photos and ≥2 confidently-distinct
-  organs, to give fusion its best case.
+- ~~Re-run with ≥3 photos and ≥2 confidently-distinct organs~~ — done, round 2.
 - The synthetic-group fusion numbers in `CNN_FINDINGS.md` and
   `OPENSET_FINDINGS.md` should be annotated as optimistic wherever they are
   used to justify multi-organ capture.
+- Fusion currently averages photo posteriors. Since the gain is in accuracy, a
+  better combiner (confidence-weighted, or dropping low-quality photos) may
+  extend the +3–6pp — worth testing before the capture UI is designed.
