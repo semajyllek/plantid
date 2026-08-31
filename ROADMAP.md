@@ -43,6 +43,12 @@ Two consequences, both load-bearing:
 
 1. **Drop bark as a required organ.** It becomes an optional bonus signal for
    the ~100 woody species where data exists. The capture UI must not require it.
+1b. **Organ protocol (decided): leaf + flower required, bark optional.**
+   Confirmed by the table above and by `HIERARCHY_FINDINGS.md`. Whole-plant
+   "habit" shots were considered as a shape signal and rejected on the same
+   grounds — 4,445 images, only 54 species with ≥20. The coarse shape
+   information they would carry is recoverable from leaf/flower photos via
+   genus-level output instead.
 2. **PlantNet-300K alone cannot reach 1000 species** — it only contains 1,081,
    and only 530 have ≥20 images of leaf or flower. A second corpus is mandatory.
 
