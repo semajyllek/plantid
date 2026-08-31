@@ -98,16 +98,90 @@ species gain from fusion is consistently positive. Round 1's absolute levels
 were also inflated by sampling a smaller, easier species set — 0.835 here versus
 0.913 there is the more representative number.
 
+## Round 3: is averaging the wrong combiner?
+
+Averaging is the naive choice, and since photos of one plant are *correlated*
+the right combiner should sit between mean and max. Eleven combiners tested
+(`plantid/eval/combiners.py`) on the 405 observations with ≥3 photos and ≥2
+organs — 156 of them in-catalog, which is the n behind species accuracy.
+
+**Method note.** A dev/test split selected *geometric mean* as the winner on dev
+(species 0.885) — and it then **lost on test** (0.859 vs the mean baseline's
+0.897). Marginal accuracies at this n swing ±5pp between folds, so all
+comparisons below are **paired bootstraps** over observations, which control for
+which observations are hard.
+
+### Species accuracy: nothing beats the mean
+
+| combiner | species | Δ vs mean | 95% CI |
+|---|---|---|---|
+| single (1st photo) | 0.853 | −0.032 | [−0.071, +0.006] |
+| **mean (baseline)** | **0.885** | — | — |
+| geometric mean | 0.872 | −0.013 | [−0.051, +0.019] |
+| median | 0.853 | −0.032 | [−0.064, −0.006] * |
+| max-confidence | 0.840 | −0.045 | [−0.090, +0.000] |
+| confidence-weighted | 0.885 | +0.000 | [+0.000, +0.000] |
+| top-2 mean | 0.878 | −0.006 | [−0.032, +0.019] |
+| **trimmed mean** | **0.885** | +0.000 | [−0.026, +0.026] |
+| organ-best | 0.878 | −0.006 | [−0.038, +0.026] |
+| power mean p=4 | 0.885 | +0.000 | [−0.019, +0.019] |
+
+*(\* = CI excludes zero)*
+
+Every alternative ties or loses. **The mean is already at the ceiling for
+accuracy.**
+
+This also **walks back the round-2 claim** that fusion gives "+3 to +6pp
+species". The paired CI for single-photo vs mean is [−0.071, +0.006] — it
+includes zero at n=156. The point estimate still favours fusion (+3.2pp) and it
+was positive across every filter in round 2, but it is **not** statistically
+established on this sample.
+
+### Rejection: trimmed mean is a small, real win
+
+| combiner | distant-OOD | Δ | near-OOD | Δ |
+|---|---|---|---|---|
+| single | 0.939 | −0.006 | 0.861 | +0.001 |
+| mean (baseline) | 0.945 | — | 0.860 | — |
+| **trimmed mean** | **0.953** | **+0.008** * | **0.875** | **+0.016** * |
+| median | 0.947 | +0.002 | 0.874 | +0.015 * |
+| max-confidence | 0.956 | +0.011 | 0.853 | −0.006 |
+| top-2 mean | 0.956 | +0.011 | 0.867 | +0.008 |
+| geometric mean | 0.942 | −0.003 | 0.858 | −0.001 |
+| power mean p=2 | 0.940 | −0.005 * | 0.852 | −0.008 * |
+| power mean p=4 | 0.933 | −0.012 * | 0.845 | −0.015 * |
+
+**Trimmed mean — drop the least confident photo, average the rest — is
+significantly better than the mean on both OOD metrics while tying it on
+accuracy.** It also beat the mean on rejection in *both* folds of the dev/test
+split independently, so it is not a selection artifact.
+
+The gain is modest (+0.008 / +0.016) but it is free: one line, no extra model.
+
+### Sharpening hurts — which confirms the correlation story
+
+Geometric mean, power mean p=2 and p=4 all treat photos as more-independent
+evidence, and all are **significantly worse** (p=4: −0.012 distant, −0.015
+near). That is direct empirical confirmation of why synthetic groups
+overestimated fusion: photos of one plant are correlated, and any combiner that
+assumes otherwise degrades.
+
+**Recommendation: trimmed mean.** Mean is a fine default; trimmed mean is
+strictly better and costs nothing.
+
 ## What this means
+
+
 
 1. **The multi-organ fusion premise fails for rejection.** The claim that
    "three views give three chances to notice nothing matches"
    (`OPENSET_FINDINGS.md`) was measured on groups constructed to be independent.
    On real correlated photos the effect is ~0, even with ≥4 photos and confirmed
    organ diversity.
-2. **But multi-photo capture is justified on accuracy**: +3 to +6pp species and
-   +2pp genus, consistently across filters. So guided capture should be built —
-   the case for it is accuracy and photo quality, not rejection.
+2. **Multi-photo capture is probably justified on accuracy**, +3pp species
+   (point estimate, CI includes zero at n=156) and +2pp genus, positive across
+   every filter. Combined with photo-quality control, that is the case for
+   guided capture — not rejection.
 3. **Rejection is a single-photo capability, and it transfers.** Distant-OOD
    AUROC is 0.92–0.96 from one photo on a genuinely different source, and fusing
    adds nothing. The `__OTHER__` reject class, not the number of views, is what
