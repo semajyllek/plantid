@@ -1,8 +1,16 @@
-# plantid v2 roadmap: on-device, ~1000 species, Europe + North America
+# plantid v2 roadmap: on-device, ~250 species, Europe + North America
 
-**Target**: an iOS app that identifies ~1000 common European/North American plant
+**Target**: an iOS app that identifies ~250 common European/North American plant
 species entirely on-device, from a *guided* multi-photo capture, with an explicit
 "not sure" rather than a confident wrong answer.
+
+> **Target revised from ~1000 to ~250 species.** Trust matters more than
+> coverage: a catalog users can rely on beats a larger one they can't. This makes
+> **open-set rejection the core problem** — see [`OPENSET_FINDINGS.md`](OPENSET_FINDINGS.md),
+> which shows ~250 species is both achievable from data already in hand and
+> reaches 76% coverage at 95% precision. Phase 2's iNaturalist download is
+> **deferred**: PlantNet-300K alone supplies 261 catalog species *and* 619
+> background species for the reject class.
 
 **Constraint**: all training compute is local Apple Silicon (MPS). No cloud GPU.
 
