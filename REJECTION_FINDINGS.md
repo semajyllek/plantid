@@ -109,6 +109,67 @@ OOD distributions tested. `OPENSET_FINDINGS.md` already recorded coverage moving
 76% → 30% from a base-rate change alone, so this is always reported as a curve,
 never a scalar.
 
+## What is the real out-of-catalogue rate?
+
+Every precision and coverage figure here depends on it, and it had been a guess
+(20%). It is measurable, and the measurement produces two answers seven times
+apart — because it is a question about *users*, not about plants.
+
+**iNaturalist, Europe + North America, frequency-weighted:** of 59 million
+research-grade plant observations across the 6,000 most-observed species, only
+**6.5% are of catalogue species — a 93.5% out-of-catalogue rate.** (Europe alone
+9.4% in-catalogue; North America 4.7%. Sampling the most-observed species first
+means the unsampled tail can only push this higher, so 93.5% is a floor.)
+
+**PlantNet-300K, which is an actual plant-identification app:** **87.9% of its
+images are of catalogue species — a 12.1% out-of-catalogue rate.**
+
+### The optimistic number is partly circular, and the check says only partly
+
+The catalogue was *selected* from PlantNet by taking species with ≥20 leaf and
+flower images, so of course it covers most PlantNet images. It sits at 87.9%
+against 91.6% for an optimal 261-species pick on that corpus — we chose well,
+which is not the same as users behaving well.
+
+A split-half test separates those: apply the catalogue rule to a random half of
+the corpus, then measure coverage on the held-out half. Result: **88.0%
+coverage, 12.0% out-of-catalogue** — the selection rule generalises within the
+platform. It is still the same users on the same platform, so this is a ceiling,
+not a forecast.
+
+### Why the two numbers differ, and which to use
+
+iNaturalist users are naturalists who deliberately seek out unusual plants; a
+plant-ID app user photographs the tree outside their house. **The gap is entirely
+the user population**, and the right reference class for this product is the
+plant-ID app, not the biodiversity platform.
+
+### How much the assumption matters
+
+Fitting *and* reporting at the same assumed rate, on the held-out split:
+
+| assumed OOD rate | precision | coverage | names species | declines |
+|---|---|---|---|---|
+| 10% | 0.974 | 0.870 | 0.678 | 0.057 |
+| **12% — PlantNet-like** | **0.976** | **0.855** | 0.619 | 0.057 |
+| 20% — current setting | 0.965 | 0.747 | 0.619 | 0.107 |
+| 40% | 0.923 | 0.535 | 0.605 | 0.193 |
+| 60% | 0.959 | 0.384 | 0.126 | 0.224 |
+| **94% — iNaturalist-like** | 0.916 | **0.040** | 0.001 | 0.685 |
+
+**At the naturalist rate the product does not exist**: it answers 4% of captures
+and essentially never names a species. That is not a tuning problem — a
+261-species catalogue is simply the wrong product for users who photograph the
+unusual, and no threshold repairs it.
+
+At the app-like rate it is a good product: 85% of captures answered at 97.6%
+precision, naming a species on 62% of catalogue plants.
+
+**Recommendation: plan at 12–20%.** The current 20% is a defensible hedge
+slightly toward caution. But this is now the assumption the whole system rests
+on, and it is a question about who the users are — worth settling with real
+usage data before launch rather than more modelling.
+
 ## Choosing the utility: λ is the sensitive parameter
 
 λ (the value of a genus answer) controls species-vs-genus, with a **sharp
