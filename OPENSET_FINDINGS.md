@@ -114,13 +114,68 @@ could not be tested because BarkVN-50 contains only bark. n is modest (300 vs
 183). But note the direction: tropical bark from a different continent and a
 different collection method *should be easy* to reject. It isn't.
 
+### Extending to leaf and flower — the collapse is bark-specific
+
+Repeating the protocol per organ against style-matched foreign sources
+(all catalog-overlapping classes excluded first — *Punica* from the Indian set,
+*Pelargonium* / *Anemone* / *Anthurium* from Oxford):
+
+| organ | foreign source | style-matched? | AUROC msp | FA@95 msp | AUROC Mahal. | FA@95 Mahal. |
+|---|---|---|---|---|---|---|
+| leaf | Indian plant leaves (542) | **NO** — studio bg | 0.979 | 8.3% | 0.981 | 0.4% |
+| bark | BarkVN-50 (300) | yes | 0.702 | 99.3% | 0.805 | 74.3% |
+| flower | Oxford Flowers 102 (300) | yes (close) | **0.978** | **7.3%** | 0.925 | 46.0% |
+
+**Validity check — this matters more than the numbers.** Mean border-pixel
+colour standard deviation, a proxy for "plain studio background vs cluttered
+field photo":
+
+| set | ours | foreign |
+|---|---|---|
+| leaf | 52.2 | **12.2** ← studio |
+| bark | 47.7 | 54.0 ← matched |
+| flower | 50.7 | 43.5 ← close |
+
+The Indian leaf set is shot on plain backgrounds, so its 0.98 AUROC is largely
+the model detecting *photo style*, not species novelty. **That result should be
+discarded.** BarkVN-50 and Oxford Flowers are style-matched to our corpus and
+are the fair tests.
+
+So the honest per-organ picture is: **flower rejects well cross-source
+(AUROC 0.978, 7.3% false-accept), bark fails badly (0.702–0.805, 74–99%),
+and leaf is untested** — we do not yet have a style-matched foreign leaf source.
+
+Note also that the best scorer flips by organ: max-softmax wins on flower,
+Mahalanobis on bark. No single OOD score dominates.
+
+### Can fused rejection be tested cross-source?
+
+Not yet, and the tempting shortcut is invalid. Building chimeric groups
+(foreign leaf + foreign bark + foreign flower from three *different* plants)
+would **overstate** fusion: three organs that agree on nothing produce a flat
+posterior and are trivially rejected. Real fusion faces three organs of one
+real plant that may consistently resemble one catalog species.
+
+A valid test needs a foreign source with **multiple organs of the same
+individual**. The realistic option is iNaturalist observations, which bundle
+several photos per observation — accepting that iNat is inside BioCLIP-2's
+training data (`DATA_STRATEGY.md`), so it tests source-shift for the *head*
+while being contaminated for the *encoder*, and needs organ routing since iNat
+photos are not organ-tagged.
+
+Interim inference, clearly labelled as such: fusion is dominated by its
+strongest member, flower rejects well, and bark is both the weakest and the
+scarcest organ. So fused cross-source rejection is plausibly much better than
+the bark-only result suggests — but that is an argument, not a measurement.
+
 ### What this means
 
 1. **Our open-set numbers are same-corpus artifacts.** The 0.943 AUROC / 76%
    coverage figures measure rejection of *held-out species photographed by the
    same community*, which is a much easier problem than rejecting a plant
    photographed by a different person with a different camera in a different
-   country. The product faces the latter.
+   country. The product faces the latter. Bark is the clearest demonstration;
+   flower, tested the same way, holds up well.
 2. **Softmax confidence is not an OOD detector.** Energy scored *below chance*
    (0.482). Only Mahalanobis — which actually models distance from the training
    distribution — showed real signal. Keep it; drop the rest.
