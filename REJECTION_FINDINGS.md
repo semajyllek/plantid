@@ -3,17 +3,18 @@
 Replaces the single accept/reject threshold on `P(__OTHER__)`, which accepted
 60% of same-genus and 39% of unrelated out-of-catalogue plants.
 
-Evaluated on **1,851 real iNaturalist observations** (750 in-catalogue / 351
-near-OOD / 750 distant-OOD, 7,010 photos), split calibration vs test **by
-cluster** — in-catalogue and distant-OOD by species, near-OOD by genus, because
-~6 observations share a species and the near-OOD decision is genus-level.
+Evaluated on **2,601 real iNaturalist observations** (750 in-catalogue / 351
+near-OOD / 750 global-OOD / 750 regional-OOD, 9,785 photos), split calibration
+vs test **by cluster** — in-catalogue and both distant OOD buckets by species,
+near-OOD by genus, because ~6 observations share a species and the near-OOD
+decision is genus-level.
 Thresholds are fitted on calibration only; every CI is a cluster bootstrap.
 
 ## The rule
 
 ```
-decline            if genus confidence   < t_genus      # 0.758
-report genus only  if species confidence < t_species    # 0.884
+decline            if genus confidence   < t_genus      # 0.744
+report genus only  if species confidence < t_species    # 0.897
 report species     otherwise
 ```
 
@@ -33,37 +34,80 @@ Fitted by maximising expected utility, declared before fitting: correct species
 
 ## Result
 
+Fitted thresholds: `t_genus = 0.744`, `t_species = 0.897`.
+
 | | mean utility (test) | 95% CI |
 |---|---|---|
-| baseline, single threshold | +0.418 | [+0.292, +0.540] |
-| **three-way rule** | **+0.690** | [+0.640, +0.741] |
-| **paired gain** | **+0.272** | **[+0.147, +0.405]** ✓ |
+| baseline, single threshold | +0.396 | [+0.298, +0.489] |
+| **three-way rule** | **+0.773** | [+0.734, +0.813] |
+| **paired gain** | **+0.377** | **[+0.282, +0.480]** ✓ |
 
 | bucket | n | species | genus | decline | answered wrong |
 |---|---|---|---|---|---|
-| in-catalogue | 373 | 0.123 | 0.579 | 0.298 | **0.000** |
-| near-OOD | 175 | 0.046 | 0.223 | 0.731 | 0.046 |
-| distant-OOD | 366 | 0.003 | 0.016 | **0.981** | 0.019 |
+| in-catalogue | 373 | 0.094 | 0.643 | 0.263 | **0.000** |
+| near-OOD | 175 | 0.034 | 0.251 | 0.714 | 0.034 |
+| global-OOD | 366 | 0.003 | 0.016 | **0.981** | 0.019 |
+| regional-OOD | 382 | 0.005 | 0.008 | **0.987** | 0.013 |
 
-The baseline, having no genus level, answered confident species on 45.7% of
-near-OOD and 14.8% of distant-OOD — all wrong. Those are now declined.
+The baseline, having no genus level, answered confident species on 44.6% of
+near-OOD, 15.3% of global-OOD and 21.5% of regional-OOD — all wrong. Those are
+now declined.
+
+## The regional-OOD risk did not materialise — and the reason matters
+
+The largest risk on record for this work was that `distant_ood`, drawn at random
+from global Plantae, is dominated by mosses, ferns and tropical flora a Europe/NA
+app would never be shown, and that a deployment-realistic OOD set would be much
+harder. A `regional_ood` bucket was fetched to test exactly that: same rule
+(neither species nor genus in the catalogue) but restricted to iNat's Europe
+(`97391`) and North America (`97394`) places. The distributions are genuinely
+different — sampling 100 of each overlaps on 2 — with global giving *Pandanus*,
+*Banksia* and Australian orchids while regional gives *Quercus robur*,
+*Viola odorata*, *Castanea sativa*, *Kalmia latifolia*.
+
+**Precision and coverage are effectively identical:**
+
+| assumed OOD rate | global OOD | | regional OOD | |
+|---|---|---|---|---|
+| | precision | coverage | precision | coverage |
+| 60% | 0.960 | 0.358 | 0.966 | 0.355 |
+| 40% | 0.980 | 0.484 | 0.984 | 0.482 |
+| **20%** | **0.992** | **0.611** | **0.993** | **0.610** |
+| 10% | 0.996 | 0.674 | 0.997 | 0.674 |
+
+But the prediction was not simply wrong — it was right about the *old* score and
+wrong about the new one:
+
+| bucket | AUROC on `1 − P(__OTHER__)` | AUROC on **genus confidence** |
+|---|---|---|
+| near-OOD | 0.838 | 0.815 |
+| global-OOD | **0.929** | 0.980 |
+| regional-OOD | **0.919** | **0.984** |
+
+On the score the old rule used, regional OOD *is* harder (0.919 vs 0.929), which
+is why the baseline accepts 21.5% of it against 15.3% of global. **Switching the
+decline decision to genus confidence is precisely what neutralises that** —
+on genus confidence regional is marginally *easier* (0.984 vs 0.980).
+
+Median genus confidence tells the same story: 0.144 (regional) and 0.147
+(global) against 0.856 for in-catalogue — a clean gap — whereas
+`1 − P(__OTHER__)` puts them at 0.963 and 0.958 against 0.996, badly overlapped.
+
+The likely reason the regional set is not harder: the `__OTHER__` pool is 800
+PlantNet species, which are themselves temperate Europe/NA plants. The reject
+class has already been trained on this distribution. That also predicts the
+result would *not* hold for a region the catalogue and background pool do not
+cover — a tropical deployment would need its own background pool.
 
 ## Precision depends mostly on how often users photograph unknown plants
 
-This is the number that matters, and quoting it without an assumed
-out-of-catalogue rate is meaningless. Our eval set is **59.5% out-of-catalogue**,
-far above what deployment is likely to be:
-
-| assumed OOD rate | precision | coverage |
-|---|---|---|
-| 60% (this eval set) | 0.951 | 0.340 |
-| 40% | 0.976 | 0.461 |
-| **20%** | **0.990** | **0.582** |
-| 10% | 0.996 | 0.642 |
-
-At a plausible 20% OOD rate the app answers **58% of captures with 99%
-precision**. `OPENSET_FINDINGS.md` already recorded coverage moving 76% → 30%
-from a base-rate change alone, so this is reported as a curve, never a scalar.
+Quoting precision without an assumed out-of-catalogue rate is meaningless: the
+eval set is ~57% out-of-catalogue, far above what deployment is likely to be.
+Per the table above, at a plausible 20% rate the app answers **61% of captures
+with 99% precision**, and that figure is stable across the two very different
+OOD distributions tested. `OPENSET_FINDINGS.md` already recorded coverage moving
+76% → 30% from a base-rate change alone, so this is always reported as a curve,
+never a scalar.
 
 ## Choosing the utility: λ is the sensitive parameter
 
@@ -75,10 +119,13 @@ transition just below 0.5**:
 | 0.25 | 1 | 0.587 | 0.097 | 0.316 | 0.948 | 0.565 |
 | 0.25 | 2 | 0.534 | 0.070 | 0.397 | 0.950 | 0.498 |
 | 0.25 | 4 | 0.370 | 0.078 | 0.552 | 0.960 | 0.366 |
-| **0.50** | **2** | **0.123** | **0.579** | 0.298 | **0.990** | **0.582** |
+| **0.50** | **2** | **0.094** | **0.643** | 0.263 | **0.992** | **0.611** |
 | 0.75 | 4 | 0.000 | 0.702 | 0.298 | 0.998 | 0.421 |
 
-**λ=0.5 was initially read as a failure** — answering species on only 12% of
+(the λ=0.25 and λ=0.75 rows were measured before the regional bucket was added
+and so sit on a smaller calibration set; the chosen row is current)
+
+**λ=0.5 was initially read as a failure** — answering species on ~10% of
 in-catalogue observations looked like the degenerate "always answer genus"
 outcome. Measured at a realistic OOD rate it is the opposite: it is the point
 that *delivers* the precision-first target, at the best coverage of any option
@@ -171,11 +218,10 @@ pytest -q                      # 63 tests
 - **Re-validate the chosen operating point out of sample** — the λ/μ surface was
   read off the test split.
 - **Test the conformal genus-containment rule** against the fixed `t_species`.
-- **`distant_ood` is drawn from global Plantae** — mosses, ferns, tropical flora
-  — and is easier than deployment OOD for a Europe/NA app, which would be
-  temperate non-catalogue plants sitting between our two OOD buckets. The 98.1%
-  decline rate is on the easy case. A `place_id`-restricted re-fetch is the fix,
-  and is the single most likely way these numbers disappoint in reality.
+- ~~`distant_ood` is easier than deployment OOD~~ — **tested and resolved**: a
+  region-restricted bucket declines at 98.7%, versus 98.1% global. The concern
+  was valid for the old score and is neutralised by the genus-confidence rule.
+  It would return for a region the catalogue and `__OTHER__` pool do not cover.
 - **Bark asymmetry**: the bark head spans 77 of 261 species, so for the other
   184 its component contributes no mass to the true class and structurally
   deflates confidence. Accept rates should be stratified by bark coverage.

@@ -13,6 +13,13 @@ images). This module pulls those observations into three buckets:
   in_catalog   - species is in the 261-species catalog       -> should be accepted
   near_ood     - species not in catalog, but its genus is    -> hard rejection
   distant_ood  - neither species nor genus in the catalog    -> easy rejection
+  regional_ood - same as distant_ood, but restricted to Europe / North America
+
+`distant_ood` is drawn at random from global Plantae, so it is dominated by
+mosses, ferns and tropical flora that a Europe/NA app would never be shown.
+`regional_ood` is the deployment-realistic version: temperate plants a user
+could plausibly photograph that are simply not in the catalogue. It is the
+honest test of the reject decision.
 
 **Contamination caveat**: iNaturalist feeds GBIF, which feeds TreeOfLife-200M,
 which BioCLIP-2 was trained on (`DATA_STRATEGY.md`). So this tests source-shift
@@ -34,6 +41,8 @@ from plantid.config import DATA_PROCESSED
 
 API = "https://api.inaturalist.org/v1/observations"
 PLANTAE = 47126
+# iNat continental places, for the deployment-realistic OOD bucket.
+REGION_PLACE_IDS = (97391, 97394)  # Europe, North America
 HEADERS = {"User-Agent": "plantid-research/0.1 (species identification evaluation)"}
 MANIFEST = "inat_observations.parquet"
 IMAGES_DIR = "images_inat"
@@ -69,7 +78,7 @@ def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTO
             continue
         if bucket == "near_ood" and (in_sp or not in_gen):
             continue
-        if bucket == "distant_ood" and (in_sp or in_gen):
+        if bucket in ("distant_ood", "regional_ood") and (in_sp or in_gen):
             continue
         photos = [p["url"].replace("square", "medium") for p in o.get("photos", [])][:MAX_PHOTOS]
         if len(photos) < min_photos:
@@ -80,7 +89,7 @@ def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTO
 
 
 def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS,
-          per_species=3, per_genus=4):
+          per_species=3, per_genus=4, buckets=None):
     """Collect observations per bucket. `min_photos` filters at fetch time, so
     raising it means querying more broadly rather than discarding later.
 
@@ -89,10 +98,11 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
     grow those buckets without issuing more requests."""
     rows = []
     have = lambda b: len([r for r in rows if r["bucket"] == b])  # noqa: E731
+    want = (lambda b: buckets is None or b in buckets)
 
     # in-catalog: query species by species
     for name in pd.Series(sorted(catalog_species)).sample(len(catalog_species), random_state=seed):
-        if have("in_catalog") >= per_bucket:
+        if not want("in_catalog") or have("in_catalog") >= per_bucket:
             break
         j = _get({"taxon_name": name, "quality_grade": "research", "photos": "true",
                   "per_page": 100, "locale": "en"})
@@ -103,7 +113,7 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
     # near-OOD is rare under random sampling (genus in catalog, species not), so
     # query the catalog's *genera* directly and drop the catalog species.
     for genus in pd.Series(sorted(catalog_genera)).sample(len(catalog_genera), random_state=seed):
-        if have("near_ood") >= per_bucket:
+        if not want("near_ood") or have("near_ood") >= per_bucket:
             break
         j = _get({"taxon_name": genus, "quality_grade": "research", "photos": "true",
                   "per_page": 100, "locale": "en"})
@@ -111,18 +121,26 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
                       catalog_genera, min_photos)[:per_genus]
         time.sleep(SLEEP)
 
-    # distant-OOD: random plants, neither species nor genus in the catalog
-    page = 1
-    while have("distant_ood") < per_bucket and page <= 60:
-        j = _get({"taxon_id": PLANTAE, "quality_grade": "research", "photos": "true",
-                  "per_page": 200, "page": page, "order_by": "random", "locale": "en"})
-        res = j.get("results", [])
-        if not res:
-            break
-        rows += _rows(res, "distant_ood", catalog_species, catalog_genera, min_photos)[
-            : per_bucket - have("distant_ood")]
-        page += 1
-        time.sleep(SLEEP)
+    # OOD buckets, both "neither species nor genus in the catalogue", sampled
+    # from random plants. `regional_ood` adds a place filter and is the
+    # deployment-realistic one: temperate plants a Europe/NA user could
+    # plausibly photograph, rather than global mosses, ferns and tropical flora.
+    for bucket, extra in (("distant_ood", {}),
+                          ("regional_ood", {"place_id": ",".join(map(str, REGION_PLACE_IDS))})):
+        if not want(bucket):
+            continue
+        page = 1
+        while have(bucket) < per_bucket and page <= 60:
+            j = _get({"taxon_id": PLANTAE, "quality_grade": "research", "photos": "true",
+                      "per_page": 200, "page": page, "order_by": "random",
+                      "locale": "en", **extra})
+            res = j.get("results", [])
+            if not res:
+                break
+            rows += _rows(res, bucket, catalog_species, catalog_genera, min_photos)[
+                : per_bucket - have(bucket)]
+            page += 1
+            time.sleep(SLEEP)
 
     return pd.DataFrame(rows).drop_duplicates(subset=["obs_id"])
 
@@ -159,6 +177,8 @@ def main():
     ap.add_argument("--min-photos", type=int, default=MIN_PHOTOS)
     ap.add_argument("--per-species", type=int, default=3)
     ap.add_argument("--per-genus", type=int, default=4)
+    ap.add_argument("--buckets", default=None,
+                    help="comma-separated subset to fetch; existing rows for other buckets are kept")
     ap.add_argument("--no-download", action="store_true")
     args = ap.parse_args()
 
@@ -167,8 +187,9 @@ def main():
     genera = {n.split()[0] for n in species}
     print(f"catalog: {len(species)} species, {len(genera)} genera")
 
+    wanted = set(args.buckets.split(",")) if args.buckets else None
     df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos,
-               per_species=args.per_species, per_genus=args.per_genus)
+               per_species=args.per_species, per_genus=args.per_genus, buckets=wanted)
     print(df.groupby("bucket").size().to_string())
 
     if not args.no_download:
@@ -176,8 +197,18 @@ def main():
         print(f"after download: {len(df)} observations, {df['local_paths'].map(len).sum()} photos")
         print(df.groupby("bucket").size().to_string())
 
-    df.to_parquet(DATA_PROCESSED / MANIFEST, index=False)
-    print(f"wrote {DATA_PROCESSED / MANIFEST}")
+    path = DATA_PROCESSED / MANIFEST
+    if wanted and path.exists():
+        # keep buckets we did not refetch, so their frozen calib/test splits and
+        # already-embedded photos stay exactly as they were
+        existing = pd.read_parquet(path)
+        kept = existing[~existing["bucket"].isin(wanted)]
+        df = pd.concat([kept, df], ignore_index=True).drop_duplicates(subset=["obs_id"])
+        print(f"merged: kept {len(kept)} rows from buckets {sorted(set(kept.bucket))}")
+
+    df.to_parquet(path, index=False)
+    print(f"wrote {path} ({len(df)} observations)")
+    print(df.groupby("bucket").size().to_string())
 
 
 if __name__ == "__main__":

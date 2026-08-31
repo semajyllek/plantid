@@ -35,21 +35,36 @@ def photo_paths(cache_dir=DATA_PROCESSED) -> list[str]:
 
 
 def main(variant: str = "bioclip2", cache_dir=DATA_PROCESSED, batch_size: int = 64):
+    """Incremental: embeds only photos not already in the cache, then merges.
+
+    Buckets get added over time (a region-restricted OOD set, say), and
+    re-embedding thousands of unchanged photos to add a few hundred is pure
+    waste — and would make the cache depend on when it was built.
+    """
     from plantid.features.pretrained import embed_images, load_encoder
 
     paths = photo_paths(cache_dir)
     path = cache_path(variant, cache_dir)
+
+    known_paths, known_emb = [], None
     if path.exists():
-        have = set(np.load(path)["path"].tolist())
-        if have >= set(paths):
-            print(f"{path.name} already covers all {len(paths)} photos")
-            return
-        print(f"{path.name} covers {len(have & set(paths))}/{len(paths)} — re-embedding")
+        cached = np.load(path)
+        known_paths, known_emb = list(cached["path"]), cached["descriptor"]
+
+    have = set(known_paths)
+    todo = [p for p in paths if p not in have]
+    if not todo:
+        print(f"{path.name} already covers all {len(paths)} photos")
+        return
+    print(f"{len(have & set(paths))}/{len(paths)} cached; embedding {len(todo)} new photos", flush=True)
 
     model, preprocess, device = load_encoder(variant)
-    emb = embed_images(paths, model, preprocess, device, batch_size=batch_size, desc="inat")
-    np.savez_compressed(path, descriptor=emb, path=np.asarray(paths, dtype=str))
-    print(f"{path.name}: {emb.shape} from {len(paths)} photos", flush=True)
+    new_emb = embed_images(todo, model, preprocess, device, batch_size=batch_size, desc="inat")
+
+    all_paths = known_paths + todo
+    all_emb = np.vstack([known_emb, new_emb]) if known_emb is not None else new_emb
+    np.savez_compressed(path, descriptor=all_emb, path=np.asarray(all_paths, dtype=str))
+    print(f"{path.name}: {all_emb.shape} covering {len(all_paths)} photos", flush=True)
 
 
 if __name__ == "__main__":

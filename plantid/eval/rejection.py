@@ -66,7 +66,15 @@ IN_CATALOG = "in_catalog"
 
 # Cluster to split on, per bucket. Splitting near-OOD by species would still put
 # the same genus in both halves, and the decision being fitted is genus-level.
-SPLIT_CLUSTER = {"in_catalog": "species", "near_ood": "genus", "distant_ood": "species"}
+SPLIT_CLUSTER = {"in_catalog": "species", "near_ood": "genus",
+                 "distant_ood": "species", "regional_ood": "species"}
+
+# Which out-of-catalogue buckets stand in for real traffic, and their shares.
+# `distant_ood` is drawn from global Plantae and is dominated by mosses, ferns
+# and tropical flora a Europe/NA app would never be shown; `regional_ood` is the
+# same rule restricted to Europe/N.America and is the deployment-realistic one.
+OOD_MIX_GLOBAL = {"near_ood": 0.32, "distant_ood": 0.68}
+OOD_MIX_REGIONAL = {"near_ood": 0.32, "regional_ood": 0.68}
 
 
 def genus_matrix(classes, mask):
@@ -191,32 +199,39 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
     return out, router_acc
 
 
-def precision_coverage(levels, species_ok, genus_ok, buckets, p_ood=None,
-                       near_share=NEAR_OOD_SHARE):
+def precision_coverage(levels, species_ok, genus_ok, buckets, p_ood=None, ood_mix=None):
     """Precision among answers given, and coverage, at an assumed OOD rate.
 
-    `p_ood=None` uses the eval set as-is (59.5% out-of-catalogue), which is far
-    higher than deployment is likely to be and therefore pessimistic. Passing a
-    prevalence re-weights the buckets to that assumption instead.
+    `p_ood=None` uses the eval set as-is, which is ~60% out-of-catalogue — far
+    higher than deployment is likely to be, and therefore pessimistic. Passing a
+    prevalence re-weights the buckets to that assumption. `ood_mix` chooses
+    which OOD buckets stand in for real traffic and in what proportion.
     """
+    buckets = np.asarray(buckets)
     answered = levels != DECLINE
     correct = ((levels == SPECIES) & species_ok) | ((levels == GENUS) & genus_ok)
     if p_ood is None:
         w = np.ones(len(levels), float)
     else:
-        n = {b: max((buckets == b).sum(), 1) for b in ("in_catalog", "near_ood", "distant_ood")}
-        w = np.where(buckets == "in_catalog", (1 - p_ood) / n["in_catalog"],
-            np.where(buckets == "near_ood", p_ood * near_share / n["near_ood"],
-                     p_ood * (1 - near_share) / n["distant_ood"]))
+        mix = ood_mix or OOD_MIX_GLOBAL
+        w = np.zeros(len(levels), float)
+        n_in = max((buckets == IN_CATALOG).sum(), 1)
+        w[buckets == IN_CATALOG] = (1 - p_ood) / n_in
+        total = sum(mix.values())
+        for bucket, share in mix.items():
+            m = buckets == bucket
+            if m.any():
+                w[m] = p_ood * (share / total) / m.sum()
     answered_mass = (w * answered).sum()
     return (float((w * answered * correct).sum() / max(answered_mass, 1e-12)),
             float(answered_mass / w.sum()))
 
 
-def prevalence_table(levels, species_ok, genus_ok, buckets, grid=OOD_PREVALENCE_GRID):
+def prevalence_table(levels, species_ok, genus_ok, buckets, grid=OOD_PREVALENCE_GRID, ood_mix=None):
     rows = []
     for p in grid:
-        prec, cov = precision_coverage(levels, species_ok, genus_ok, buckets, p_ood=p)
+        prec, cov = precision_coverage(levels, species_ok, genus_ok, buckets,
+                                       p_ood=p, ood_mix=ood_mix)
         rows.append({"ood_rate": p, "precision": prec, "coverage": cov})
     return pd.DataFrame(rows).set_index("ood_rate")
 
@@ -292,11 +307,14 @@ def main():
     dlo, dhi = cluster_bootstrap(delta, clusters)
     star = "" if (dlo <= 0 <= dhi) else "  *"
     print(f"paired gain: {delta.mean():+.3f}  95% CI [{dlo:+.3f}, {dhi:+.3f}]{star}")
-    print("\nPRECISION / COVERAGE vs assumed out-of-catalogue rate")
-    print("(this eval set is 59.5% OOD, higher than deployment is likely to be)")
     levels = decide(test["species_conf"].values, test["genus_conf"].values, tg, ts)
-    print(prevalence_table(levels, test["species_ok"].values, test["genus_ok"].values,
-                           test["bucket"].values).round(3).to_string())
+    for label, mix in (("global OOD (mosses, ferns, tropical)", OOD_MIX_GLOBAL),
+                       ("regional OOD (Europe/N.America)", OOD_MIX_REGIONAL)):
+        if not set(mix) & set(test["bucket"].unique()):
+            continue
+        print(f"\nPRECISION / COVERAGE vs assumed out-of-catalogue rate — {label}")
+        print(prevalence_table(levels, test["species_ok"].values, test["genus_ok"].values,
+                               test["bucket"].values, ood_mix=mix).round(3).to_string())
 
     print("\nBASELINE outcome rates per bucket")
     bt = pd.DataFrame([{ "bucket": b, "n": len(g),

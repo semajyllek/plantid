@@ -91,6 +91,29 @@ def test_make_splits_keeps_clusters_whole():
         assert (folds_per_cluster == 1).all()
 
 
+def test_adding_a_bucket_does_not_disturb_existing_splits():
+    """Appending a new bucket must leave the frozen calib/test split alone.
+
+    Buckets get added over time (a region-restricted OOD set, say). If that
+    reshuffled the existing ones, thresholds fitted earlier would silently
+    become fitted-on-test.
+    """
+    base = pd.DataFrame({
+        "bucket": ["in_catalog"] * 6 + ["near_ood"] * 6 + ["distant_ood"] * 6,
+        "species": [f"A{i // 2}" for i in range(6)] + [f"B{i // 2}" for i in range(6)]
+                   + [f"C{i // 2}" for i in range(6)],
+        "genus": ["G"] * 6 + [f"NG{i // 3}" for i in range(6)] + ["H"] * 6,
+    })
+    extra = pd.DataFrame({
+        "bucket": ["regional_ood"] * 6,
+        "species": [f"D{i // 2}" for i in range(6)],
+        "genus": ["I"] * 6,
+    })
+    before = make_splits(base, seed=0)
+    after = make_splits(pd.concat([base, extra], ignore_index=True), seed=0)[: len(base)]
+    assert list(before.values) == list(after.values)
+
+
 def test_cluster_bootstrap_brackets_the_mean():
     values = np.repeat([0.0, 1.0], 30)
     clusters = np.repeat([f"c{i}" for i in range(12)], 5)
