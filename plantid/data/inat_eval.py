@@ -79,9 +79,14 @@ def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTO
     return out
 
 
-def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS):
+def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS,
+          per_species=3, per_genus=4):
     """Collect observations per bucket. `min_photos` filters at fetch time, so
-    raising it means querying more broadly rather than discarding later."""
+    raising it means querying more broadly rather than discarding later.
+
+    `per_species` / `per_genus` cap how many observations each query contributes,
+    which is what limits the in-catalog and near-OOD bucket sizes: raise them to
+    grow those buckets without issuing more requests."""
     rows = []
     have = lambda b: len([r for r in rows if r["bucket"] == b])  # noqa: E731
 
@@ -90,8 +95,9 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
         if have("in_catalog") >= per_bucket:
             break
         j = _get({"taxon_name": name, "quality_grade": "research", "photos": "true",
-                  "per_page": 30, "locale": "en"})
-        rows += _rows(j.get("results", []), "in_catalog", catalog_species, catalog_genera, min_photos)[:3]
+                  "per_page": 100, "locale": "en"})
+        rows += _rows(j.get("results", []), "in_catalog", catalog_species,
+                      catalog_genera, min_photos)[:per_species]
         time.sleep(SLEEP)
 
     # near-OOD is rare under random sampling (genus in catalog, species not), so
@@ -100,8 +106,9 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
         if have("near_ood") >= per_bucket:
             break
         j = _get({"taxon_name": genus, "quality_grade": "research", "photos": "true",
-                  "per_page": 60, "locale": "en"})
-        rows += _rows(j.get("results", []), "near_ood", catalog_species, catalog_genera, min_photos)[:4]
+                  "per_page": 100, "locale": "en"})
+        rows += _rows(j.get("results", []), "near_ood", catalog_species,
+                      catalog_genera, min_photos)[:per_genus]
         time.sleep(SLEEP)
 
     # distant-OOD: random plants, neither species nor genus in the catalog
@@ -150,6 +157,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-bucket", type=int, default=150)
     ap.add_argument("--min-photos", type=int, default=MIN_PHOTOS)
+    ap.add_argument("--per-species", type=int, default=3)
+    ap.add_argument("--per-genus", type=int, default=4)
     ap.add_argument("--no-download", action="store_true")
     args = ap.parse_args()
 
@@ -158,7 +167,8 @@ def main():
     genera = {n.split()[0] for n in species}
     print(f"catalog: {len(species)} species, {len(genera)} genera")
 
-    df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos)
+    df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos,
+               per_species=args.per_species, per_genus=args.per_genus)
     print(df.groupby("bucket").size().to_string())
 
     if not args.no_download:

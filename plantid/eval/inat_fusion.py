@@ -26,7 +26,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
 from plantid.config import DATA_PROCESSED, ORGANS
-from plantid.features.embed_background import catalog_species, load_background
+from plantid.features.embed_background import catalog_species, eval_species_names, load_background
 from plantid.features.embed_catalog import load_catalog
 
 OTHER = "__OTHER__"
@@ -36,10 +36,17 @@ def _l2(x):
     return x / np.clip(np.linalg.norm(x, axis=1, keepdims=True), 1e-9, None)
 
 
-def build_heads(cache_dir=DATA_PROCESSED, C=10.0):
+def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True):
     """Per-organ species heads with a class-weighted reject class, plus the
-    projection from each head's classes into a shared class space."""
+    projection from each head's classes into a shared class space.
+
+    `exclude_eval_species` drops evaluation-set species from the `__OTHER__`
+    pool. Leave it on: without it the reject class is fitted on 47 of the 183
+    near-OOD species (32% of those observations), making near-OOD rejection
+    partly in-sample. Set False only to reproduce the leaked measurement.
+    """
     cs = catalog_species(cache_dir)
+    ev = eval_species_names(cache_dir) if exclude_eval_species else None
     cat = pd.read_parquet(cache_dir / "catalog_index.parquet")
     classes = sorted({" ".join(n.split()[:2]) for n in cat["species_name"].unique()}) + [OTHER]
     index = {c: i for i, c in enumerate(classes)}
@@ -49,7 +56,9 @@ def build_heads(cache_dir=DATA_PROCESSED, C=10.0):
         d = load_catalog(organ, cache_dir=cache_dir)
         E, tr = _l2(d["descriptor"]), d["split"] == "train"
         names = np.array([" ".join(n.split()[:2]) for n in d["species_name"]])
-        bg = _l2(load_background(organ, exclude_species=cs, cache_dir=cache_dir)["descriptor"])
+        bg = _l2(
+            load_background(organ, exclude_species=cs, exclude_names=ev, cache_dir=cache_dir)["descriptor"]
+        )
         heads[organ] = LogisticRegression(max_iter=4000, C=C, class_weight="balanced").fit(
             np.vstack([E[tr], bg]), np.r_[names[tr], np.full(len(bg), OTHER)]
         )
