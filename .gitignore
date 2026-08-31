@@ -12,3 +12,4 @@ data/processed/
 results/
 *.faiss
 *.meta
+.venv-mps/
