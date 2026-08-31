@@ -3,10 +3,17 @@
 Multi-organ plant species identification. Given one or more photos of a plant —
 leaf, flower, and optionally bark/fruit — identify the species.
 
-**Current state:** a working 87-species research pipeline (fine-tuned CNN
-embeddings + k-NN + late fusion, `fused top-1 = 0.738 ± 5.6pp`). The project is
-now pivoting to v2: ~1000 European/North American species, running entirely
-on-device on iOS, from a guided capture flow. See [`ROADMAP.md`](ROADMAP.md).
+**Current state:** v2 — a **261-species** catalog over frozen BioCLIP-2
+embeddings with a class-weighted reject class, all trained locally on Apple
+Silicon with no backbone fine-tuning. Genus-level accuracy 0.95–0.98,
+species-level 0.76–0.83, and cross-source rejection of out-of-catalog plants at
+0.97 AUROC. Target is an on-device iOS app with guided multi-organ capture that
+declines rather than guesses. See [`ROADMAP.md`](ROADMAP.md) and
+[`CATALOG_FINDINGS.md`](CATALOG_FINDINGS.md).
+
+The superseded v1 (87 species, fine-tuned `mobilenet_v3_small`, `fused top-1 =
+0.738 ± 5.6pp`) is documented below — the frozen encoder beat it by 29pp with
+zero training.
 
 Sibling projects: [imret](https://github.com/semajyllek/imret) (image retrieval
 engine) and [artfinder](https://github.com/semajyllek/artfinder) (painting
