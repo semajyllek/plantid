@@ -83,8 +83,21 @@ the "don't waste compute" discipline made structural.
 "Extremely accurate" at 1000 species is not achievable as raw top-1 from one
 casual photo, and chasing it would produce a worse product. The right target:
 
-> **Precision at coverage, with an abstain option.**
-> e.g. *≥95% top-1 precision on the ≥70% of captures the model accepts.*
+> **Precision at coverage, with an abstain option — and a genus level between
+> them.** Delivered: at an assumed 20% out-of-catalogue rate, **99.0% precision
+> on 58% of captures** (`REJECTION_FINDINGS.md`).
+
+The metric is now three-way rather than binary: the app answers at **species**,
+answers at **genus**, or **declines**. Genus is a first-class answer, not a
+hedge — genus accuracy (0.95–0.98) far exceeds species accuracy (0.76–0.83), and
+species accuracy structurally caps what species-level answering can achieve, so
+precision above ~88% *requires* the genus level. Thresholds are fitted by
+expected-utility maximisation with utilities declared in advance
+(`eval/rejection.py:UTILITY`), never by reading a threshold off the test set.
+
+Precision is always reported as a curve over the assumed out-of-catalogue rate,
+never as a scalar: it moves from 0.951 to 0.996 across a 60%→10% assumption on
+the same model.
 
 An app that says "I'm not confident — try a photo of the leaf" beats one that is
 confidently wrong. This is also the only framing in which a defensible accuracy
@@ -95,8 +108,9 @@ Report alongside it: top-1/top-5 (comparability), **macro**-averaged accuracy
 coverage-vs-precision curves.
 
 Deprecate the current headline: `fused top-10 = 0.980` is a candidate-list-length
-artifact (see `CNN_FINDINGS.md`). Carry forward `fused top-1 = 0.738 ± 5.6pp` as
-the 87-species baseline to beat.
+artifact (see `CNN_FINDINGS.md`). The v1 87-species baseline was
+`fused top-1 = 0.738 ± 5.6pp`; v2 supersedes it at 261 species
+(`CATALOG_FINDINGS.md`, `REJECTION_FINDINGS.md`).
 
 ---
 

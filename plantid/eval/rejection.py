@@ -39,11 +39,27 @@ from plantid.config import DATA_PROCESSED
 from plantid.eval.combiners import trimmed
 from plantid.eval.inat_fusion import OTHER, _l2, build_heads, build_router, photo_posteriors
 
-# Declared before fitting, deliberately. lam: a genus answer is worth half a
-# species answer - real, but not a substitute. mu: a wrong answer costs 4x a
-# right one, encoding the precision-first operating point.
-UTILITY = {"species_correct": 1.0, "genus_correct": 0.5, "wrong": -4.0,
+# Declared before fitting, deliberately.
+#
+# lam=0.5: a genus answer is worth half a species answer. mu=2: a wrong answer
+# costs twice a right one, encoding the precision-first operating point.
+#
+# lam is the sensitive parameter and there is a sharp transition just below 0.5:
+# at lam=0.25 the rule answers species on ~53% of in-catalogue observations, at
+# lam=0.5 on ~12%, at lam=0.75 never. That looks alarming until precision is
+# measured at a realistic out-of-catalogue rate rather than this eval set's
+# 59.5%: at a 20% OOD rate lam=0.5 gives 99.0% precision at 58% coverage,
+# whereas lam=0.25 gives 95.0% at 50%. Genus-heavy answering is what buys the
+# precision, and species accuracy (~0.88) caps what species-level answering can
+# ever reach. See REJECTION_FINDINGS.md for the full surface.
+UTILITY = {"species_correct": 1.0, "genus_correct": 0.5, "wrong": -2.0,
            "decline_ood": 1.0, "decline_in_catalog": 0.0}
+
+# Share of real queries that are out-of-catalogue. Unknown, and the single
+# biggest lever on reported precision, so results are always reported as a
+# curve over it rather than at this eval set's incidental 59.5%.
+OOD_PREVALENCE_GRID = (0.6, 0.4, 0.2, 0.1)
+NEAR_OOD_SHARE = 0.32  # of out-of-catalogue queries, the fraction in a catalogue genus
 
 SPECIES, GENUS, DECLINE = "species", "genus", "decline"
 IN_CATALOG = "in_catalog"
@@ -135,7 +151,8 @@ def cluster_bootstrap(values, clusters, n=2000, seed=0):
     return float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))
 
 
-def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combiner=trimmed):
+def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combiner=trimmed,
+                       temperatures=None):
     """One row per observation: truth, bucket, and the fused posterior scores."""
     heads, proj, classes = build_heads(cache_dir=cache_dir)
     router, router_acc = build_router(cache_dir=cache_dir)
@@ -154,7 +171,8 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
         idx = [path_index[p] for p in r.local_paths if p in path_index]
         if len(idx) < min_photos:
             continue
-        P, organs, _ = photo_posteriors(E[idx], heads, proj, router, len(classes))
+        P, organs, _ = photo_posteriors(E[idx], heads, proj, router, len(classes),
+                                        temperatures=temperatures)
         fused = combiner(P, list(organs), oi)[None, :]
         sc, gc, omo = scores(fused, mask, oi, gmat)
         pred = classes[mask][fused[:, mask].argmax(1)][0]
@@ -171,6 +189,36 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
     out = pd.DataFrame(rows)
     out["fold"] = make_splits(out)
     return out, router_acc
+
+
+def precision_coverage(levels, species_ok, genus_ok, buckets, p_ood=None,
+                       near_share=NEAR_OOD_SHARE):
+    """Precision among answers given, and coverage, at an assumed OOD rate.
+
+    `p_ood=None` uses the eval set as-is (59.5% out-of-catalogue), which is far
+    higher than deployment is likely to be and therefore pessimistic. Passing a
+    prevalence re-weights the buckets to that assumption instead.
+    """
+    answered = levels != DECLINE
+    correct = ((levels == SPECIES) & species_ok) | ((levels == GENUS) & genus_ok)
+    if p_ood is None:
+        w = np.ones(len(levels), float)
+    else:
+        n = {b: max((buckets == b).sum(), 1) for b in ("in_catalog", "near_ood", "distant_ood")}
+        w = np.where(buckets == "in_catalog", (1 - p_ood) / n["in_catalog"],
+            np.where(buckets == "near_ood", p_ood * near_share / n["near_ood"],
+                     p_ood * (1 - near_share) / n["distant_ood"]))
+    answered_mass = (w * answered).sum()
+    return (float((w * answered * correct).sum() / max(answered_mass, 1e-12)),
+            float(answered_mass / w.sum()))
+
+
+def prevalence_table(levels, species_ok, genus_ok, buckets, grid=OOD_PREVALENCE_GRID):
+    rows = []
+    for p in grid:
+        prec, cov = precision_coverage(levels, species_ok, genus_ok, buckets, p_ood=p)
+        rows.append({"ood_rate": p, "precision": prec, "coverage": cov})
+    return pd.DataFrame(rows).set_index("ood_rate")
 
 
 def summarise(df, t_genus, t_species, weights=None):
@@ -244,6 +292,12 @@ def main():
     dlo, dhi = cluster_bootstrap(delta, clusters)
     star = "" if (dlo <= 0 <= dhi) else "  *"
     print(f"paired gain: {delta.mean():+.3f}  95% CI [{dlo:+.3f}, {dhi:+.3f}]{star}")
+    print("\nPRECISION / COVERAGE vs assumed out-of-catalogue rate")
+    print("(this eval set is 59.5% OOD, higher than deployment is likely to be)")
+    levels = decide(test["species_conf"].values, test["genus_conf"].values, tg, ts)
+    print(prevalence_table(levels, test["species_ok"].values, test["genus_ok"].values,
+                           test["bucket"].values).round(3).to_string())
+
     print("\nBASELINE outcome rates per bucket")
     bt = pd.DataFrame([{ "bucket": b, "n": len(g),
         "species": float((base_levels[test.index.get_indexer(g.index)] == SPECIES).mean()),

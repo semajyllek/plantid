@@ -81,13 +81,26 @@ def build_router(cache_dir=DATA_PROCESSED, C=10.0):
     return clf, acc
 
 
-def photo_posteriors(E, heads, proj, router, n_classes):
-    """Organ-marginalised posterior per photo, plus routed organ and confidence."""
+def photo_posteriors(E, heads, proj, router, n_classes, temperatures=None):
+    """Organ-marginalised posterior per photo, plus routed organ and confidence.
+
+    `temperatures` maps organ -> T, applied to that head's logits *before* the
+    router mixes them. Because a mixture of tempered distributions is not a
+    monotone transform of the tempered mixture, this can change the ranking and
+    therefore the decision — unlike temperature on a single classifier. See
+    `eval/calibration.py`.
+    """
+    from scipy.special import softmax
+
     W = router.predict_proba(E)
     order = list(router.classes_)
     out = np.zeros((len(E), n_classes))
     for organ in ORGANS:
-        out[:, proj[organ]] += W[:, order.index(organ)][:, None] * heads[organ].predict_proba(E)
+        if temperatures and organ in temperatures:
+            p = softmax(heads[organ].decision_function(E) / temperatures[organ], axis=1)
+        else:
+            p = heads[organ].predict_proba(E)
+        out[:, proj[organ]] += W[:, order.index(organ)][:, None] * p
     return out, np.array([order[i] for i in W.argmax(1)]), W.max(1)
 
 
