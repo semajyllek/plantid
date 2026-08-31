@@ -8,6 +8,12 @@ the model must reliably decline rather than confidently guess.
 All experiments below run on cached BioCLIP-2 embeddings (`BAKEOFF_FINDINGS.md`)
 — seconds of CPU, no GPU, no new data.
 
+> **Contamination caveat (added later).** BioCLIP-2's training corpus
+> (TreeOfLife-200M) draws on GBIF and a PlantNet-derived Meta-Album subset, so
+> the absolute numbers in this document may be optimistic — treat them as upper
+> bounds pending an out-of-distribution test set. The ranking versus the
+> fine-tuned CNN is unlikely to be affected. See [`DATA_STRATEGY.md`](DATA_STRATEGY.md).
+
 ## Protocol
 
 Split the 87 species into disjoint roles, so "unknown" species are never seen in

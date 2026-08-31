@@ -10,6 +10,12 @@ existing `match_eval.evaluate_organ` harness, so every number is directly
 comparable to the classical and fine-tuned-CNN results. All local, on MPS
 (M4 Max) — the whole bake-off is ~20 minutes of compute.
 
+> **Contamination caveat (added later).** BioCLIP-2's training corpus
+> (TreeOfLife-200M) draws on GBIF and a PlantNet-derived Meta-Album subset, so
+> the absolute numbers in this document may be optimistic — treat them as upper
+> bounds pending an out-of-distribution test set. The ranking versus the
+> fine-tuned CNN is unlikely to be affected. See [`DATA_STRATEGY.md`](DATA_STRATEGY.md).
+
 ## Headline
 
 Weighted top-1 across the 1,624 test images (leaf 755 / bark 183 / flower 686):
