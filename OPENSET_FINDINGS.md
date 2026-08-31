@@ -208,6 +208,73 @@ the bark-only result suggests — but that is an argument, not a measurement.
 3. **This is the generalisation gap `DATA_STRATEGY.md` predicted**, now measured
    rather than assumed, and it cost one zero-labelling download.
 
+## ✅ Full-scale `__OTHER__` class fixes cross-source rejection
+
+The 800-species background pool (18,166 images: leaf 8,519 / flower 9,422 /
+**bark 225**) was downloaded to exercise the reject class properly. Result,
+against the same foreign sources as above:
+
+| organ | variant | in-catalog acc | → OTHER | cross-source AUROC | FA@95 |
+|---|---|---|---|---|---|
+| bark | no OTHER | 0.738 | — | 0.702 | 99.3% |
+| bark | OTHER, unweighted | 0.699 | 11.5% | 0.953 | 31.3% |
+| **bark** | **OTHER, class_weight=balanced** | **0.825** | 0.5% | **0.968** | **18.3%** |
+| flower | no OTHER | 0.910 | — | 0.978 | 7.3% |
+| flower | OTHER, unweighted | 0.685 | 27.0% | 0.979 | 9.3% |
+| **flower** | **OTHER, balanced** | 0.898 | 0.6% | **0.981** | **5.3%** |
+| leaf | no OTHER | 0.862 | — | — | — |
+| leaf | OTHER, unweighted | 0.604 | 34.3% | — | — |
+| **leaf** | **OTHER, balanced** | 0.856 | 0.7% | — | — |
+
+**Bark cross-source rejection goes from unusable to good: AUROC 0.702 → 0.968,
+false-accept 99.3% → 18.3% — and in-catalog accuracy *improves* 0.738 → 0.825.**
+
+Two things this corrects:
+
+1. **The prediction that scarce bark negatives wouldn't help was wrong.** 225
+   background bark images from 24 species were enough. Quantity of negatives
+   mattered far less than *having* them.
+2. **Class weighting is not optional.** Unweighted, the reject class swallows
+   27–34% of legitimate in-catalog leaf and flower images and costs 22–26pp of
+   accuracy — a cost the AUROC column hides entirely. With
+   `class_weight='balanced'` the accuracy cost falls to ≤1.2pp and rejection
+   gets *better*. Any implementation must weight the classes.
+
+### But it helps distant OOD and hurts near OOD
+
+Same-corpus open-set (60 known / 13 held-out *catalog* species — botanically
+close to the catalog, unlike foreign flora):
+
+| organ | no OTHER | OTHER unweighted | OTHER balanced |
+|---|---|---|---|
+| leaf | 0.872 | 0.892 | **0.897** |
+| bark | **0.865** | 0.705 | 0.715 |
+| flower | 0.907 | **0.939** | 0.926 |
+
+Bark inverts: the reject class that fixed foreign bark (0.702 → 0.968) *hurts*
+on near-neighbour species (0.865 → 0.715). The 24 background bark species teach
+"bark unlike my catalog", which separates Vietnamese trees easily but distorts
+the boundary against congeners of catalog species.
+
+**This suggests two mechanisms for two failure modes**, which is also how the
+product should be built:
+
+- **distant out-of-catalog** (a plant unlike anything in the catalog) →
+  `__OTHER__` reject class, class-weighted
+- **near out-of-catalog** (an unseen species in a catalog genus) →
+  genus-level output (`HIERARCHY_FINDINGS.md`): say *"a Sedum, unsure which"*,
+  correct 78–88% of the time
+
+Genus marginalisation also improves foreign-flower rejection (AUROC 0.985,
+FA 4.0%) though it hurts bark — consistent with the same split.
+
+### Still open
+
+- **Leaf cross-source is untested** — no style-matched foreign leaf source yet.
+- **Fused cross-source is untested** — still needs a foreign multi-organ source
+  (iNaturalist observations).
+- The same-corpus bark regression needs a proper fix, not just noting.
+
 ## Recommended target: ~250 species, from data already in hand
 
 PlantNet-300K supports this without any new corpus:
