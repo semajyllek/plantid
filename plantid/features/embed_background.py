@@ -20,6 +20,30 @@ def cache_path(organ: str, variant: str = "bioclip2", cache_dir=DATA_PROCESSED):
     return cache_dir / f"background_{organ}_{variant}.npz"
 
 
+def load_background(organ: str, exclude_species=None, variant: str = "bioclip2", cache_dir=DATA_PROCESSED) -> dict:
+    """Background embeddings, with `exclude_species` dropped.
+
+    The pool was built against an earlier, smaller catalog, so some of its
+    species are now *in* the catalog. Those must not be used as negatives —
+    training the reject class on a species you also want to recognise teaches
+    the model to reject it. Filtering here avoids re-embedding: pass the current
+    catalog's species ids and the overlap is dropped at load time.
+    """
+    npz = np.load(cache_path(organ, variant, cache_dir))
+    data = {k: npz[k] for k in npz.files}
+    if exclude_species:
+        keep = ~np.isin(data["species_id"], list(exclude_species))
+        data = {k: v[keep] for k, v in data.items()}
+    return data
+
+
+def catalog_species(cache_dir=DATA_PROCESSED, manifest="catalog_index.parquet") -> set:
+    path = cache_dir / manifest
+    if not path.exists():
+        return set()
+    return set(pd.read_parquet(path)["species_id"].unique())
+
+
 def main(variant: str = "bioclip2", cache_dir=DATA_PROCESSED, batch_size: int = 64):
     from plantid.features.pretrained import embed_images, load_encoder
 
