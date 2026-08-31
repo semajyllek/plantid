@@ -39,8 +39,10 @@ Fused across leaf + bark + flower, 1,460 test groups (1,200 known-species,
 | FUSED softmax × kNN | 0.949 | 56% | 76% | 87% |
 | **FUSED + explicit `__OTHER__` class** | 0.947 | **58%** | **76%** | 85% |
 
-**This is a viable product.** At 95% precision the app answers 76% of captures
-and declines the rest; at 99% precision it still answers ~58%.
+On same-corpus held-out species this looks like a viable product: at 95%
+precision the app answers 76% of captures and declines the rest. **But see the
+cross-source test below — this does not hold when the data comes from a
+different source, and these figures should not be quoted as product claims.**
 
 ## Multi-organ capture is what makes rejection work
 
@@ -77,6 +79,53 @@ out-of-catalog plants.** This argues directly for choosing the catalog by *what
 people actually photograph* rather than by what is easiest to source, and for
 measuring the real-world unknown rate early. A catalog that covers the common
 cases well is worth more than a larger one that doesn't.
+
+## ⚠️ The rejection result does not survive a change of data source
+
+Everything above uses held-out species from **the same corpus** — same
+contributors, cameras, framing conventions, and regions. Testing against a
+genuinely foreign source changes the answer completely.
+
+**Test**: 300 images from BarkVN-50 (Vietnamese tree bark, research-collected,
+not citizen-science). Every image is out-of-catalog by construction, so no
+labels are needed. Scored against our 87-species bark head on BioCLIP-2
+embeddings, versus our own 183 in-catalog bark test images.
+
+| OOD score | AUROC | false-accept @95% TPR |
+|---|---|---|
+| max softmax | 0.702 | 99.3% |
+| max logit | 0.619 | 99.0% |
+| energy (logsumexp) | 0.482 | 99.0% |
+| kNN cosine (top-1) | 0.699 | 97.0% |
+| kNN cosine (mean@5) | 0.666 | 98.3% |
+| **Mahalanobis** | **0.805** | **74.3%** |
+
+At a threshold that accepts 95% of genuine in-catalog bark, the best detector
+still wrongly accepts **74%** of Vietnamese tree bark; most scorers accept
+essentially all of it. Compare AUROC 0.783 for bark alone on same-corpus
+held-out species — and 0.943 fused.
+
+**Confound ruled out:** only 1 of BarkVN-50's 50 genera (*Acacia*) appears in
+our catalog, and at different species, so at most ~2% of these images could be
+legitimately accepted.
+
+**Caveats:** this is bark alone — the weakest organ for rejection — and fusion
+could not be tested because BarkVN-50 contains only bark. n is modest (300 vs
+183). But note the direction: tropical bark from a different continent and a
+different collection method *should be easy* to reject. It isn't.
+
+### What this means
+
+1. **Our open-set numbers are same-corpus artifacts.** The 0.943 AUROC / 76%
+   coverage figures measure rejection of *held-out species photographed by the
+   same community*, which is a much easier problem than rejecting a plant
+   photographed by a different person with a different camera in a different
+   country. The product faces the latter.
+2. **Softmax confidence is not an OOD detector.** Energy scored *below chance*
+   (0.482). Only Mahalanobis — which actually models distance from the training
+   distribution — showed real signal. Keep it; drop the rest.
+3. **This is the generalisation gap `DATA_STRATEGY.md` predicted**, now measured
+   rather than assumed, and it cost one zero-labelling download.
 
 ## Recommended target: ~250 species, from data already in hand
 
