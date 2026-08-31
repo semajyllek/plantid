@@ -1,4 +1,4 @@
-# Location prior: real signal, but it does not pay as a gate
+# Location prior: real signal, but it does not pay
 
 **Verdict against the pre-registered rule: do not ship.** The location gate's
 expected-utility gain is +0.0069 with a 95% CI of [−0.0025, +0.0220] — the
@@ -124,43 +124,58 @@ The exponent `w` in `posterior · prior**w` was fitted on calibration, with
 0.944 at 0.5, 0.922 at 1.0, 0.810 at 2.0 — over-weighting the prior is harmful,
 as it should be).
 
-| variant | species accuracy (test) |
-|---|---|
-| current model (global argmax) | 0.914 |
-| constrained to the predicted genus, no location | 0.906 |
-| **within-genus re-rank with location** | **0.949** |
+### At n=373 (first measurement)
 
-| comparison | gain | 95% CI | fixed / broke |
-|---|---|---|---|
-| vs current model | **+0.0349** | [−0.0053, +0.0808] | 20 / 7 |
-| vs genus-constrained | +0.0429 | [+0.0056, +0.0861] ✓ | 20 / 4 |
+| variant | species accuracy | | gain vs current | 95% CI | fixed / broke |
+|---|---|---|---|---|---|
+| current model | 0.914 | | — | — | — |
+| genus-constrained, no location | 0.906 | | — | — | — |
+| within-genus re-rank | **0.949** | | **+0.0349** | [−0.0053, +0.0808] | 20 / 7 |
 
-**The honest reading is the first row: promising, not established.** The gain
-against the actually-deployed model is +3.5pp with a confidence interval that
-includes zero at n=373. The second row clears its interval, but it is the wrong
-comparison for a shipping decision — it measures re-ranking against a
-handicapped baseline rather than against what we run today.
+### At n=1,150 — the effect largely evaporates
 
-Two things make it look real rather than noise: the fix-to-break ratio is 20:7,
-and the exponent fitted on calibration landed at the test optimum rather than
-somewhere the sweep punishes. One thing counts against: constraining to the
-predicted genus costs −0.008 on its own (CI [−0.0216, +0.0000]), so location has
-to earn that back before it profits.
+The in-catalogue bucket was expanded to 2,283 observations over 211 species
+(from 750 over 131) specifically to settle this. Test split: **1,150
+observations over 106 species**, roughly triple.
 
-**This is a power problem, not an effect problem.** The in-catalogue test split
-holds 373 observations over ~65 species and only ~32 errors to fix. An expanded
-in-catalogue bucket (~2,500 observations over the 215 species with range data)
-is fetching; it should roughly halve the interval and settle this either way.
+| variant | species accuracy | | gain vs current | 95% CI | fixed / broke |
+|---|---|---|---|---|---|
+| current model | 0.917 | | — | — | — |
+| genus-constrained, no location | 0.916 | | — | — | — |
+| within-genus re-rank | 0.923 | | **+0.0061** | [−0.0108, +0.0223] | **28 / 21** |
+
+**+3.5pp became +0.6pp.** The confidence interval tightened as predicted — width
+0.086 → 0.033, almost exactly the halving the power calculation implied — and it
+still contains zero, now centred near it.
+
+The fix-to-break ratio is the tell. At n=373 it was 20:7, which I cited as
+evidence the effect was real. At n=1,150 it is **28:21**, close to parity: the
+re-ranker breaks almost as many correct answers as it repairs.
+
+A small consistent effect does survive — the exponent fits at `w = 0.25` on
+calibration and the test sweep still peaks there (0.923 against 0.916 at
+`w = 0`, falling to 0.885 at `w = 1.0`). But it is worth well under a point of
+accuracy, not the three and a half points the small sample suggested.
+
+**Verdict: within-genus re-ranking does not pay either.** Location is now
+measured and rejected in both forms — as a gate, and as a constrained re-ranker.
+
+### This is the third time in this project
+
+A promising result at small n has now failed to replicate at larger n three
+times: multi-organ fusion (round 1 → round 2), the combiner comparison (dev →
+test), and this. Each had a plausible mechanism and an encouraging point
+estimate. The common factor is a confidence interval that included zero and was
+read optimistically because the story was good.
 
 ## What this changes
 
 - **Phase 8 closes** as measured-and-rejected for gating. Location is not a free
   accuracy win the way the roadmap assumed.
-- **Within-genus re-ranking is the live candidate**, at +3.5pp against the
-  deployed model with a CI that includes zero. It preserves the property that
-  motivated the gate-only decision — the genus a user sees is still decided by
-  the photograph — while capturing most of Test A's headroom. Pending the
-  better-powered measurement.
+- **Within-genus re-ranking is also rejected**, at +0.6pp with a CI containing
+  zero on 1,150 observations. Location is measured and closed in both forms.
+  What remains untested is unconstrained re-ranking (ruled out on product
+  grounds), seasonality, and prevalence-weighting the prior.
 
 ## Known limitations
 

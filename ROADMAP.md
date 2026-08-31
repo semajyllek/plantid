@@ -251,11 +251,14 @@ says do not ship. It fails because the vision thresholds are already
 conservative enough that the gate only changes 0.3–2.9% of decisions: the AUROC
 gain lands where the operating point never looks.
 
-**What remains open is re-ranking.** 62% of species errors named a locally
-implausible species while the truth was locally plausible — a 5.4pp accuracy
-ceiling reachable only by letting location change the name, which was ruled out
-on product grounds before the number was known. Revisiting that, especially
-re-ranking only *within* a genus, is the live question.
+**Within-genus re-ranking was then tested and also rejected.** Letting location
+choose among congeners while the photograph fixes the genus looked worth +3.5pp
+on 373 observations; on 1,150 it is **+0.6pp, 95% CI [−0.011, +0.022]**, with
+the fix-to-break ratio falling from 20:7 to 28:21. The first measurement was
+small-sample noise.
+
+What remains untested: unconstrained re-ranking (ruled out on product grounds),
+prevalence-weighting the prior, and seasonality.
 
 Seasonality (date) was never tested and remains unexplored.
 

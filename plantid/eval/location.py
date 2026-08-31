@@ -164,7 +164,13 @@ def main():
     ap.add_argument("--emb", default=str(DATA_PROCESSED / "inat_bioclip2.npz"))
     ap.add_argument("--bandwidth", type=float, default=BANDWIDTH_KM)
     ap.add_argument("--score", default="loc_prq", choices=["loc_prq", "loc_mass"])
+    ap.add_argument("--rerank", action="store_true",
+                    help="run the within-genus re-ranking test instead of the gate tests")
     args = ap.parse_args()
+
+    if args.rerank:
+        report_rerank(args.emb, bandwidth_km=args.bandwidth)
+        return
 
     df, _ = build_observations(args.emb)
     df = attach_locations(df)
@@ -262,9 +268,6 @@ def main():
           f"{np.mean((u_gate - u_base)[~test.obscured.fillna(False).values]):+.4f}")
 
 
-if __name__ == "__main__":
-    main()
-
 
 # ------------------------------------------------------- within-genus rerank --
 
@@ -311,3 +314,72 @@ def fit_rerank_exponent(posteriors, classes, mask, gmat, ug, prior, cal_idx, tru
         if acc > best_acc:
             best, best_acc = float(w), acc
     return best, best_acc
+
+
+def report_rerank(emb_path=None, bandwidth_km=BANDWIDTH_KM, cache_dir=DATA_PROCESSED):
+    """Within-genus re-ranking, measured against the model actually deployed.
+
+    The baseline matters here and is easy to get wrong: constraining to the
+    predicted genus is *itself* a change, and costs a little accuracy on its own,
+    so `w=0` is not the current model. Both comparisons are reported, and the
+    one against the deployed model is the one that decides anything.
+    """
+    from plantid.data.species_ranges import eval_obs_ids, load_prior
+    from plantid.eval.rejection import build_observations, cluster_bootstrap
+
+    emb_path = emb_path or str(cache_dir / "inat_bioclip2.npz")
+    df, _, post, classes, mask, gmat, ug = build_observations(emb_path, keep_posterior=True)
+    df = attach_locations(df, cache_dir)
+    prior = load_prior(cache_dir, exclude_obs_ids=eval_obs_ids(cache_dir), bandwidth_km=bandwidth_km)
+
+    lats, lons, truth = df.lat.to_numpy(float), df.lon.to_numpy(float), df.species.to_numpy()
+    ic = (df.bucket == "in_catalog").to_numpy()
+    cal, te = (df.fold == "calib").to_numpy() & ic, (df.fold == "test").to_numpy() & ic
+    t = truth[te]
+
+    cat = classes[mask]
+    sizes = pd.Series([c.split()[0] for c in cat]).value_counts()
+    eligible = sum(1 for i in np.flatnonzero(te)
+                   if sizes.get(ug[(post[i][mask] @ gmat.T).argmax()], 0) >= 2)
+    print(f"in-catalogue: calib {cal.sum()}, test {te.sum()}  "
+          f"({df[te].species.nunique()} species)")
+    print(f"eligible (predicted genus has >=2 catalogue species): {eligible} "
+          f"({eligible / max(te.sum(), 1):.0%})\n")
+
+    w, acc_cal = fit_rerank_exponent(post, classes, mask, gmat, ug, prior,
+                                     np.flatnonzero(cal), truth, lats, lons)
+    print(f"exponent fitted on calibration: w={w}  (calibration accuracy {acc_cal:.3f})")
+    if w == 0:
+        print("  -> the fit declined to use location at all")
+
+    deployed = df.pred_species.to_numpy()[te]
+    genus_only = rerank_within_genus(post[te], classes, mask, gmat, ug, prior,
+                                     lats[te], lons[te], 0.0)
+    reranked = rerank_within_genus(post[te], classes, mask, gmat, ug, prior,
+                                   lats[te], lons[te], w)
+    cl = clusters_for(df[te])
+
+    print(f"\n{'variant':46s} {'accuracy':>9s}")
+    for label, arm in (("current model (global argmax)", deployed),
+                       ("constrained to predicted genus, no location", genus_only),
+                       ("within-genus re-rank with location", reranked)):
+        print(f"{label:46s} {(arm == t).mean():>9.3f}")
+
+    print()
+    for label, arm in (("vs current model", deployed), ("vs genus-constrained", genus_only)):
+        d = (reranked == t).astype(float) - (arm == t).astype(float)
+        lo, hi = cluster_bootstrap(d, cl)
+        fixed = int(((arm != t) & (reranked == t)).sum())
+        broke = int(((arm == t) & (reranked != t)).sum())
+        mark = "  *" if not (lo <= 0 <= hi) else "  (includes zero)"
+        print(f"{label:22s} gain {d.mean():+.4f}  95% CI [{lo:+.4f}, {hi:+.4f}]{mark}"
+              f"   fixed {fixed} broke {broke}")
+
+    print("\nsweep on test for context (not used for selection):")
+    for ww in (0.0, 0.25, 0.5, 1.0, 2.0):
+        p = rerank_within_genus(post[te], classes, mask, gmat, ug, prior,
+                                lats[te], lons[te], ww)
+        print(f"  w={ww:<5} accuracy {(p == t).mean():.3f}")
+
+if __name__ == "__main__":
+    main()
