@@ -164,8 +164,13 @@ def cluster_bootstrap(values, clusters, n=2000, seed=0):
 
 
 def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combiner=trimmed,
-                       temperatures=None):
-    """One row per observation: truth, bucket, and the fused posterior scores."""
+                       temperatures=None, keep_posterior=False):
+    """One row per observation: truth, bucket, and the fused posterior scores.
+
+    `keep_posterior` additionally returns the full fused posterior per
+    observation, which re-ranking experiments need and the decision path does
+    not.
+    """
     heads, proj, classes = build_heads(cache_dir=cache_dir)
     router, router_acc = build_router(cache_dir=cache_dir)
     oi = int(np.flatnonzero(classes == OTHER)[0])
@@ -178,7 +183,7 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
     path_index = {p: i for i, p in enumerate(z["path"])}
     df = pd.read_parquet(cache_dir / "inat_observations.parquet")
 
-    rows = []
+    rows, posteriors = [], []
     for r in df.itertuples():
         idx = [path_index[p] for p in r.local_paths if p in path_index]
         if len(idx) < min_photos:
@@ -198,8 +203,12 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
             "species_ok": pred == binom, "genus_ok": gpred == r.genus,
             "in_catalog": r.bucket == IN_CATALOG, "n_photos": len(idx),
         })
+        if keep_posterior:
+            posteriors.append(fused[0])
     out = pd.DataFrame(rows)
     out["fold"] = make_splits(out)
+    if keep_posterior:
+        return out, router_acc, np.stack(posteriors), classes, mask, gmat, ug
     return out, router_acc
 
 

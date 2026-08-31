@@ -96,3 +96,49 @@ def test_rank_quantile_is_within_location_unlike_mass():
     assert sparse_p.rank_quantile(51.5, -0.1, "Britanica testa") == \
            dense_p.rank_quantile(51.5, -0.1, "Britanica testa")
     assert dense_p.weights(51.5, -0.1).sum() > sparse_p.weights(51.5, -0.1).sum()
+
+
+def test_rerank_never_leaves_the_predicted_genus():
+    """The whole point of the narrow form: location picks among congeners, but
+    the genus the photograph chose is never overridden."""
+    import numpy as np
+    from plantid.eval.location import rerank_within_genus
+
+    classes = np.array(["Alpha one", "Alpha two", "Beta one", "__OTHER__"])
+    mask = np.array([True, True, True, False])
+    cat = classes[mask]
+    genera = np.array([c.split()[0] for c in cat])
+    ug = np.unique(genera)
+    gmat = np.stack([(genera == g).astype(float) for g in ug])
+
+    # posterior favours genus Alpha overall, but species "Alpha one" narrowly
+    post = np.array([[0.30, 0.28, 0.42, 0.0]])
+    pts = pd.DataFrame([
+        {"species": "Alpha two", "obs_id": 1, "lat": 51.5, "lon": -0.1},
+        {"species": "Beta one", "obs_id": 2, "lat": 37.8, "lon": -122.4},
+    ])
+    prior = LocationPrior(pts, bandwidth_km=50)
+
+    # in London, Alpha two is the locally supported congener
+    got = rerank_within_genus(post, classes, mask, gmat, ug, prior,
+                              np.array([51.5]), np.array([-0.1]), w=2.0)
+    assert got[0].startswith("Alpha")      # genus never changes
+    assert got[0] == "Alpha two"           # but the species within it can
+
+
+def test_rerank_with_zero_exponent_ignores_location():
+    import numpy as np
+    from plantid.eval.location import rerank_within_genus
+
+    classes = np.array(["Alpha one", "Alpha two", "__OTHER__"])
+    mask = np.array([True, True, False])
+    cat = classes[mask]
+    genera = np.array([c.split()[0] for c in cat])
+    ug = np.unique(genera)
+    gmat = np.stack([(genera == g).astype(float) for g in ug])
+    post = np.array([[0.7, 0.3, 0.0]])
+    pts = pd.DataFrame([{"species": "Alpha two", "obs_id": 1, "lat": 51.5, "lon": -0.1}])
+    prior = LocationPrior(pts, bandwidth_km=50)
+    got = rerank_within_genus(post, classes, mask, gmat, ug, prior,
+                              np.array([51.5]), np.array([-0.1]), w=0.0)
+    assert got[0] == "Alpha one"           # posterior alone wins when w=0

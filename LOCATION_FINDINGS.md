@@ -110,16 +110,57 @@ continents as the in-catalogue set, so the artefact vanishes exactly where the
 geography matches. The shipped score (`loc_prq`) is a *within-location* rank
 instead, invariant to how well-recorded a place is.
 
+## Within-genus re-ranking — the narrow form, tested
+
+Re-ranking was reopened in its narrow form: the genus stays decided by the
+photograph, and location only chooses among **congeners** — where confusions
+concentrate and where closely related species are separated more by range than
+by appearance. 80% of in-catalogue test observations have a predicted genus with
+≥2 catalogue species, so are eligible at all.
+
+The exponent `w` in `posterior · prior**w` was fitted on calibration, with
+`w = 0` in the grid so the fit could decline to use location. It chose
+**w = 0.25**, and a sweep on test confirms that generalised (0.949 at 0.25,
+0.944 at 0.5, 0.922 at 1.0, 0.810 at 2.0 — over-weighting the prior is harmful,
+as it should be).
+
+| variant | species accuracy (test) |
+|---|---|
+| current model (global argmax) | 0.914 |
+| constrained to the predicted genus, no location | 0.906 |
+| **within-genus re-rank with location** | **0.949** |
+
+| comparison | gain | 95% CI | fixed / broke |
+|---|---|---|---|
+| vs current model | **+0.0349** | [−0.0053, +0.0808] | 20 / 7 |
+| vs genus-constrained | +0.0429 | [+0.0056, +0.0861] ✓ | 20 / 4 |
+
+**The honest reading is the first row: promising, not established.** The gain
+against the actually-deployed model is +3.5pp with a confidence interval that
+includes zero at n=373. The second row clears its interval, but it is the wrong
+comparison for a shipping decision — it measures re-ranking against a
+handicapped baseline rather than against what we run today.
+
+Two things make it look real rather than noise: the fix-to-break ratio is 20:7,
+and the exponent fitted on calibration landed at the test optimum rather than
+somewhere the sweep punishes. One thing counts against: constraining to the
+predicted genus costs −0.008 on its own (CI [−0.0216, +0.0000]), so location has
+to earn that back before it profits.
+
+**This is a power problem, not an effect problem.** The in-catalogue test split
+holds 373 observations over ~65 species and only ~32 errors to fix. An expanded
+in-catalogue bucket (~2,500 observations over the 215 species with range data)
+is fetching; it should roughly halve the interval and settle this either way.
+
 ## What this changes
 
 - **Phase 8 closes** as measured-and-rejected for gating. Location is not a free
   accuracy win the way the roadmap assumed.
-- **The re-ranking question is now open, and it is the interesting one.** The
-  5.4pp headroom in Test A exists only through renaming, which was ruled out on
-  product grounds *before* this measurement. That decision was made without
-  knowing the number, and is worth revisiting deliberately — particularly the
-  narrower option of re-ranking only *within* a genus, where confusions
-  concentrate and the coarse answer stays image-driven.
+- **Within-genus re-ranking is the live candidate**, at +3.5pp against the
+  deployed model with a CI that includes zero. It preserves the property that
+  motivated the gate-only decision — the genus a user sees is still decided by
+  the photograph — while capturing most of Test A's headroom. Pending the
+  better-powered measurement.
 
 ## Known limitations
 

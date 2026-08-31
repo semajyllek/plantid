@@ -264,3 +264,50 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ------------------------------------------------------- within-genus rerank --
+
+def rerank_within_genus(posteriors, classes, mask, gmat, ug, prior, lats, lons, w,
+                        neutral=0.5):
+    """Let location choose among congeners, never across genera.
+
+    The genus is decided by the photograph and fixed. Within it, species are
+    re-scored by `posterior · prior**w`. This is the narrow form of re-ranking:
+    the coarse answer a user sees stays image-driven, while the fine distinction
+    — which is where confusions concentrate and where congeners are separated by
+    range more than by appearance — can use where they are standing.
+
+    `w = 0` recovers the current model exactly, so the fitted exponent is itself
+    the test of whether location carries usable identity information.
+    """
+    cat_names = classes[mask]
+    genus_of = np.array([c.split()[0] for c in cat_names])
+    out = []
+    for i in range(len(posteriors)):
+        p = posteriors[i][mask]
+        g = ug[(p @ gmat.T).argmax()]                      # genus: image only
+        members = np.flatnonzero(genus_of == g)
+        if len(members) < 2 or not np.isfinite(lats[i]) or w == 0:
+            out.append(cat_names[members[p[members].argmax()]] if len(members)
+                       else cat_names[p.argmax()])
+            continue
+        pri = prior.prior(lats[i], lons[i])
+        pr = np.array([pri[prior.index[c]] if c in prior.index else neutral * pri.mean()
+                       for c in cat_names[members]])
+        out.append(cat_names[members[np.argmax(p[members] * pr ** w)]])
+    return np.array(out)
+
+
+def fit_rerank_exponent(posteriors, classes, mask, gmat, ug, prior, cal_idx, truth,
+                        lats, lons, grid=(0.0, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0)):
+    """Choose w on calibration by species accuracy. w=0 is in the grid, so the
+    fit can decline to use location at all."""
+    best, best_acc = 0.0, -1.0
+    for w in grid:
+        pred = rerank_within_genus(posteriors[cal_idx], classes, mask, gmat, ug,
+                                   prior, lats[cal_idx], lons[cal_idx], w)
+        acc = float((pred == truth[cal_idx]).mean())
+        if acc > best_acc:
+            best, best_acc = float(w), acc
+    return best, best_acc
