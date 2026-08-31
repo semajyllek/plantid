@@ -60,6 +60,14 @@ Three views of the same plant give three chances to notice that nothing in the
 catalog matches. Asking the user for specific organs isn't just a data-quality
 measure — it is the mechanism that makes "I don't know" reliable.
 
+> **Superseded by [`INAT_FINDINGS.md`](INAT_FINDINGS.md).** This table is built
+> on *synthetic* groups that assume the organ images are conditionally
+> independent given species. Tested on real iNaturalist observations of the same
+> individual plant, fusion is worth only **+0.001 to +0.013 AUROC**, not the
+> +0.04–0.11 implied here. The conditional-independence assumption was doing
+> most of the work. Guided capture remains defensible on photo-quality grounds,
+> but not on this one.
+
 ## The `__OTHER__` class works, and is under-tested here
 
 Training an explicit reject class on background species generalises to species
