@@ -41,8 +41,22 @@ from plantid.eval.inat_fusion import OTHER, _l2, build_heads, build_router, phot
 
 # Declared before fitting, deliberately.
 #
-# lam=0.5: a genus answer is worth half a species answer. mu=2: a wrong answer
-# costs twice a right one, encoding the precision-first operating point.
+# lam=0.5: a genus answer is worth half a species answer. mu=4: a wrong answer
+# costs four times a right one, encoding the precision-first operating point.
+#
+# mu was raised from 2 after thresholds began being fitted at a *stated*
+# deployment prevalence rather than at whatever mix the evaluation set happened
+# to contain (see deployment_weights). At a consistent 20% out-of-catalogue
+# rate the frontier is:
+#
+#   mu    precision  coverage  in-catalogue species answers
+#    2      0.944      0.797            0.765
+#    4      0.965      0.747            0.619     <- chosen
+#    8      0.967      0.671            0.583
+#   32      0.991      0.645            0.126
+#
+# Reaching 99% precision costs essentially all species-level answering, which
+# is not a better product. mu=4 keeps species answers the norm at 96.5%.
 #
 # lam is the sensitive parameter and there is a sharp transition just below 0.5:
 # at lam=0.25 the rule answers species on ~53% of in-catalogue observations, at
@@ -52,7 +66,7 @@ from plantid.eval.inat_fusion import OTHER, _l2, build_heads, build_router, phot
 # whereas lam=0.25 gives 95.0% at 50%. Genus-heavy answering is what buys the
 # precision, and species accuracy (~0.88) caps what species-level answering can
 # ever reach. See REJECTION_FINDINGS.md for the full surface.
-UTILITY = {"species_correct": 1.0, "genus_correct": 0.5, "wrong": -2.0,
+UTILITY = {"species_correct": 1.0, "genus_correct": 0.5, "wrong": -4.0,
            "decline_ood": 1.0, "decline_in_catalog": 0.0}
 
 # Share of real queries that are out-of-catalogue. Unknown, and the single
@@ -116,18 +130,50 @@ def utility(levels, species_ok, genus_ok, in_catalog, weights=None):
     )
 
 
+def deployment_weights(buckets, p_ood=None, ood_mix=None):
+    """Per-observation weights that reweight the evaluation buckets to an assumed
+    deployment mix.
+
+    Without this the operating point is set by however many observations each
+    bucket happens to contain. That is an accident of sampling, and it moves the
+    product: expanding the in-catalogue bucket from 750 to 2,283 shifted the
+    calibration set from 59.5% out-of-catalogue to 44.8%, which moved
+    `t_species` from 0.897 to 0.552 and took in-catalogue species answers from
+    9% to 67% — a completely different product, from adding data alone.
+
+    `p_ood=None` leaves the raw counts (uniform weights).
+    """
+    buckets = np.asarray(buckets)
+    if p_ood is None:
+        return np.ones(len(buckets), float)
+    mix = ood_mix or OOD_MIX_GLOBAL
+    w = np.zeros(len(buckets), float)
+    n_in = max((buckets == IN_CATALOG).sum(), 1)
+    w[buckets == IN_CATALOG] = (1 - p_ood) / n_in
+    total = sum(mix.values())
+    for bucket, share in mix.items():
+        m = buckets == bucket
+        if m.any():
+            w[m] = p_ood * (share / total) / m.sum()
+    return w * len(buckets) / w.sum()
+
+
 def fit_thresholds(species_conf, genus_conf, species_ok, genus_ok, in_catalog,
-                   weights=None, n_grid=60):
-    """Grid-search (t_genus, t_species) maximising mean utility. Calibration only."""
+                   weights=None, n_grid=60, sample_weight=None):
+    """Grid-search (t_genus, t_species) maximising expected utility. Calibration
+    only. `sample_weight` reweights buckets to an assumed deployment prevalence
+    — see `deployment_weights`."""
+    sw = np.ones(len(species_conf)) if sample_weight is None else np.asarray(sample_weight, float)
+    sw = sw / sw.sum()
     g_grid = np.quantile(genus_conf, np.linspace(0, 1, n_grid))
     s_grid = np.quantile(species_conf, np.linspace(0, 1, n_grid))
     best, best_u = (0.0, 0.0), -np.inf
     for tg in g_grid:
         for ts in s_grid:
-            u = utility(decide(species_conf, genus_conf, tg, ts),
-                        species_ok, genus_ok, in_catalog, weights).mean()
+            u = float(np.dot(utility(decide(species_conf, genus_conf, tg, ts),
+                                     species_ok, genus_ok, in_catalog, weights), sw))
             if u > best_u:
-                best, best_u = (float(tg), float(ts)), float(u)
+                best, best_u = (float(tg), float(ts)), u
     return best, best_u
 
 
@@ -288,6 +334,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--emb", default=str(DATA_PROCESSED / "inat_bioclip2.npz"))
     ap.add_argument("--min-photos", type=int, default=2)
+    ap.add_argument("--assumed-ood", type=float, default=0.2,
+                    help="assumed share of real queries that are out-of-catalogue")
     args = ap.parse_args()
 
     df, router_acc = build_observations(args.emb, min_photos=args.min_photos)
@@ -296,10 +344,16 @@ def main():
     print(f"observations: {len(df)}  (calib {len(calib)} / test {len(test)})")
     print(df.groupby(["bucket", "fold"]).size().unstack(fill_value=0).to_string(), "\n")
 
+    sw = deployment_weights(calib["bucket"].values, p_ood=args.assumed_ood,
+                            ood_mix=OOD_MIX_REGIONAL)
     (tg, ts), u_cal = fit_thresholds(
         calib["species_conf"].values, calib["genus_conf"].values,
-        calib["species_ok"].values, calib["genus_ok"].values, calib["in_catalog"].values)
-    print(f"fitted on calibration: t_genus={tg:.4f}  t_species={ts:.4f}  (calib utility {u_cal:+.3f})\n")
+        calib["species_ok"].values, calib["genus_ok"].values, calib["in_catalog"].values,
+        sample_weight=sw)
+    print(f"fitted on calibration at an assumed {args.assumed_ood:.0%} out-of-catalogue rate:")
+    print(f"  t_genus={tg:.4f}  t_species={ts:.4f}  (weighted calib utility {u_cal:+.3f})")
+    print("  (fitting on raw bucket counts instead would let the evaluation set's")
+    print("   composition choose the operating point — see deployment_weights)\n")
 
     table, scored = summarise(test, tg, ts)
     print("TEST SPLIT — outcome rates per bucket")
