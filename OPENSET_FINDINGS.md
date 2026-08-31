@@ -68,6 +68,32 @@ never seen in any role: +7pp coverage at 99% precision over a knowns-only head
 has **619 more** species available for this role — the lever is barely exercised,
 and is the most promising cheap improvement available.
 
+## Is bark a liability? (organ ablation)
+
+Bark is the weakest classifier (0.738 vs flower 0.910), fails cross-source
+rejection, and has almost no background data available (225 images across all
+non-catalog PlantNet species). So: does including it help or hurt?
+
+Same-corpus open-set, all organ subsets, 1,460 groups:
+
+| organs fused | AUROC | cov@99% | cov@95% |
+|---|---|---|---|
+| leaf | 0.861 | 9% | 44% |
+| bark | 0.832 | 16% | 17% |
+| flower | 0.903 | 1% | 65% |
+| leaf+bark | 0.907 | 28% | 47% |
+| leaf+flower | 0.919 | 28% | 70% |
+| bark+flower | 0.940 | 48% | 67% |
+| **leaf+bark+flower** | **0.941** | **51%** | **76%** |
+
+**In-distribution, bark earns its place** — adding it to leaf+flower is worth
++2.2pp AUROC and +6pp coverage at 95% precision. It is not dead weight.
+
+But this is the same-corpus setting, and bark is precisely the organ whose
+cross-source rejection collapsed. So the +6pp cannot be assumed to transfer;
+it is an in-distribution benefit of unvalidated durability. Keep bark as an
+opportunistic input, don't build the product's rejection guarantees on it.
+
 ## Caveat: precision depends strongly on the out-of-catalog base rate
 
 An earlier run of this experiment used 27 unseen species (31% of queries
