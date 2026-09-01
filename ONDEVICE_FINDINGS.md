@@ -130,13 +130,77 @@ That would have been reported as "4-bit destroys the model" — a conclusion abo
 a crude implementation, not about quantization. Both fixes matter: per-channel
 granularity and mass-aware centroid placement.
 
+## Core ML export: it converts, it runs on the ANE, and int4 is forced
+
+Everything above is PyTorch on MPS. `plantid/deploy/coreml.py` exports the
+encoder properly and measures what actually happens.
+
+| variant | size on disk | cosine vs fp32 | ANE latency | ops on ANE / CPU |
+|---|---|---|---|---|
+| **fp16** | 172.8 MB | **0.9998** (min 0.9994) | **8.9 ms** | 422 / 2 |
+| **int4, per-grouped-channel** (iOS 18) | **46.2 MB** | 0.932 (min 0.831) | 19.2 ms | 383 / 5 |
+| int4, per-tensor (iOS 17) | 43.5 MB | **0.413** (min 0.129) | 9.2 ms | 383 / 5 |
+
+By compute unit, on an M4 Max: CPU-only 18.4 ms, GPU 6.6 ms, ANE 8.9 ms (fp16).
+
+**The 21.8 ms MPS estimate was pessimistic — Core ML on the ANE is 8.9 ms.**
+Both configurations sit an order of magnitude inside the <100 ms budget, so
+latency is not the binding constraint. Size is: **fp16 is 172.8 MB against a
+50 MB budget, so palettization is not optional.**
+
+**Preprocessing is faithful.** Cosine 0.9998 against PyTorch on 64 real
+catalogue photographs, with resize/crop/normalisation and the L2 step baked into
+the graph. This was the failure most likely to go unnoticed — a normalisation
+mismatch produces plausible embeddings and no error anywhere.
+
+**The ANE dispatch is real, not nominal.** 422 of 424 compute ops are assigned
+to the Neural Engine (2 to CPU), so the latency figure is not a GPU fallback
+wearing an `ALL` label.
+
+### Per-tensor palettization destroys the model — Core ML agrees with the simulation
+
+The simulation above predicted this: per-tensor granularity was the variable
+that mattered, and Core ML reproduces it independently at **cosine 0.413**. The
+per-grouped-channel model lands at **0.932**, slightly *better* than the
+simulation's 0.898, so the earlier estimate was mildly conservative rather than
+wrong.
+
+This makes the OS floor a product decision with a number attached:
+**per-grouped-channel palettization requires iOS 18.** The iOS 17-compatible
+fallback is per-tensor, which is unusable. There is no cheaper way to buy iOS 17
+support than shipping a different, smaller encoder.
+
+### The 2x latency cost of per-grouped-channel is dequantization, not fallback
+
+Per-grouped-channel runs at 19.2 ms against per-tensor's 9.2 ms, and the obvious
+suspicion is that some ops fell off the ANE. They did not — **both dispatch
+identically, 383 ops to the ANE and 5 to CPU.** The difference is the cost of a
+per-channel lookup table against a single shared one. Worth paying at 19 ms.
+
+### Two conversion obstacles, both silent-ish
+
+1. `nn.MultiheadAttention` takes a fused eval-mode fast path that traces as
+   `_native_multi_head_attention`, which the converter has no implementation
+   for. `torch.backends.mha.set_fastpath_enabled(False)` decomposes it.
+2. `torch.jit.trace` then fails on an `aten::Int` over a non-scalar shape under
+   torch 2.13. `torch.export` handles it — but only after
+   `.run_decompositions({})`, since the raw export is in the TRAINING dialect
+   and the converter refuses it.
+
+Neither is BioCLIP-specific; both will recur for any ViT exported from a recent
+PyTorch.
+
 ## Still to do for a shippable model
 
-1. **Core ML export and real-device benchmarking.** The 21.8 ms figure is MPS on
-   an M4 Max, not the Neural Engine on a phone. Same order, different number.
-   The palettization here is a faithful simulation, but Core ML's own converter
-   should be checked against it rather than trusted to match.
-2. ~~**Verify on the newly added species.**~~ **Done.** 269 of the 530 had no
+1. **Benchmark on an actual phone.** The 8.9 ms is an M4 Max Neural Engine, not
+   an A-series one. Same framework and same dispatch now, but a different chip.
+2. **The deployable encoder has never been evaluated on real observations.**
+   Every figure in `REJECTION_FINDINGS.md` — the 95.6%/72% headline included —
+   is BioCLIP-**2** embeddings, and BioCLIP-2 is the 304M ViT-L that *cannot
+   ship*. `build_heads` has no `variant` parameter; it is hardcoded. BioCLIP v1
+   has only ever been compared on the catalogue's own test split. Closing this
+   is the next measurement.
+3. ~~**Verify on the newly added species.**~~ **Done.** 269 of the 530 had no
    real-observation evaluation; targeted and `taxon_id` fetches closed that to
    **32 of 497 source species** (`INAT_FINDINGS.md`). The species this surfaced
    are harder than the ones broad queries had found — species accuracy 0.873 on

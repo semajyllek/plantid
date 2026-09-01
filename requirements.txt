@@ -9,3 +9,4 @@ tqdm>=4.65.0
 faiss-cpu>=1.7.4
 datasets>=2.12.0
 imret
+coremltools
