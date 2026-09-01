@@ -230,29 +230,54 @@ partly measured rather than only asserted, and it was real.**
 
 ### The other 86 are mostly a naming problem, not a data problem
 
-The 86 species that returned nothing were resolved against iNat's active
-taxonomy. Fuzzy search is not safe here — `q=Anemone apennina` returns
-*Anemonoides blanda*, a different plant — so matches were accepted only on an
-exact `matched_term` (iNat lists our name as a synonym) or a surviving specific
-epithet across a genus transfer:
+All 247 species were in fact queried — the 86 that came back empty are spread
+evenly across the fetch's shuffled query order (positions 0 to 246, 21/26/11/28
+by quartile), so the loop did not truncate against `per_bucket`. Their emptiness
+is a property of the query, not of the run.
 
-| outcome | n | |
+They were then resolved against iNat's active taxonomy. Fuzzy search is not safe
+here — `q=Anemone apennina` returns *Anemonoides blanda*, a different plant — so
+matches were accepted only on an exact `matched_term` (iNat lists our name as a
+synonym) or a surviving specific epithet across a genus transfer:
+
+| outcome | n | why the fetch missed it |
 |---|---|---|
-| **synonym, and the modern taxon has usable observations** | **57** | recoverable |
+| **renamed** | **49** | catalogue uses the pre-split name |
+| **crowded out** | **8** | name is current; page 1 is a commoner congener |
 | resolved but genuinely unobservable | 7 | *Peperomia*, *Sedum* houseplants |
 | unresolved | 22 | |
 
-The catalogue is carrying **PlantNet's pre-split names**. Every one of the 18
-*Anemone* entries has moved: `Anemone nemorosa` → *Anemonoides nemorosa*
-(84,623 research-grade observations), `Anemone pulsatilla` → *Pulsatilla
-vulgaris*, `Anemone hepatica` → *Hepatica nobilis*. *Sedum* has split into
-*Phedimus* and *Petrosedum*, `Perovskia atriplicifolia` → *Salvia yangii*,
-`Hebe` → *Veronica*, `Schefflera` → *Heptapleurum*, `Duchesnea indica` →
-*Potentilla indica*. **A `taxon_name` query cannot match any of them**, which is
-why they looked like species iNaturalist has no data on.
+**The 49 renames.** The catalogue carries PlantNet's pre-split names. Every one
+of the 18 *Anemone* entries has moved: `Anemone nemorosa` → *Anemonoides
+nemorosa* (84,623 research-grade observations), `Anemone pulsatilla` →
+*Pulsatilla vulgaris*, `Anemone hepatica` → *Hepatica nobilis*. *Sedum* has
+split into *Phedimus* and *Petrosedum*, `Perovskia atriplicifolia` → *Salvia
+yangii*, `Hebe` → *Veronica*, `Schefflera` → *Heptapleurum*, `Duchesnea indica`
+→ *Potentilla indica*. The fetch *does* retrieve these — `taxon_name=Anemone
+nemorosa` returns 77 observations of *Anemonoides nemorosa* — and then `_rows`
+discards every one of them, because the returned binomial is not in
+`catalog_species`.
 
-The three groups that are *not* recoverable are each recoverable-in-principle
-for a different reason, and none is about the plant being rare:
+**The 8 crowded out** are the more interesting failure, because their names are
+current and nothing is wrong with them. `taxon_name` on the observations
+endpoint is a *fuzzy* match that returns related taxa, and the first page of 100
+is ordered by nothing that favours the species asked for:
+
+| query | total | what page 1 actually contains |
+|---|---|---|
+| `Lactuca sativa` | 56,684 | **100/100 *Lactuca serriola*** — zero of the species requested |
+| `Acalypha virginica` | 6,615 | 92 *A. rhomboidea*, 8 *A. virginica* |
+
+So a species with 330 usable research-grade observations returns nothing,
+because a commoner congener fills the page. This is not rarity and not
+synonymy — it is the query.
+
+Both failures have the same one-line fix: **query by `taxon_id`, which is
+exact, and accept the resolved name as the catalogue species.** Closing all 57
+would take the evaluated catalogue from 411 to ~468 of 497 species.
+
+The three groups that are *not* recoverable are each blocked for a different
+reason, and none is about the plant being rare:
 
 - **7 cultivated-only** — *Peperomia albovittata*, *Sedum burrito* and similar
   have 0–3 research-grade observations because iNat grades cultivated plants
@@ -267,9 +292,9 @@ for a different reason, and none is about the plant being rare:
   *O. sphegodes* complex that iNat does not recognise as distinct taxa. Not a
   lookup failure: a taxonomic disagreement the catalogue inherited.
 
-So the honest accounting of the original 247: **161 closed, 57 cheaply
-closable, ~29 blocked for reasons that are properties of the catalogue rather
-than of iNaturalist.** Roughly 88% of the hole is reachable.
+So the honest accounting of the original 247: **161 closed, 57 cheaply closable
+(49 renamed, 8 crowded out), ~29 blocked for reasons that are properties of the
+catalogue rather than of iNaturalist.** Roughly 88% of the hole is reachable.
 
 The same naming gap also leaks into bucketing, because bucket membership is a
 binomial string match — measured at 0.34% of OOD rows and quantified in

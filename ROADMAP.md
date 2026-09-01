@@ -86,9 +86,11 @@ casual photo, and chasing it would produce a worse product. The right target:
 > **Precision at coverage, with an abstain option — and a genus level between
 > them.** Delivered: at an assumed 20% out-of-catalogue rate, **96.2% precision
 > on 74% of captures**, on 497 species and 5,055 real observations
-> (`REJECTION_FINDINGS.md`). The earlier "99.0% on 58%" was measured at `mu=2`
-> on a 261-species catalogue; raising `mu` to 4 and anchoring thresholds to a
-> stated prevalence traded precision for coverage deliberately.
+> (`REJECTION_FINDINGS.md`). The earlier "99.0% on 58%" was the λ=0.5/μ=2 row on
+> a 261-species catalogue, before thresholds were anchored to a stated
+> prevalence. Anchoring — plus a harder, twice-as-large species set — is what
+> traded precision for coverage; raising `mu` to 4 pushed the other way
+> (0.944→0.965 at a consistent 20% rate) and partly offset it.
 
 The metric is now three-way rather than binary: the app answers at **species**,
 answers at **genus**, or **declines**. Genus is a first-class answer, not a

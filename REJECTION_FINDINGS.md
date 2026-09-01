@@ -386,11 +386,19 @@ is supposed to name. Checked rather than assumed:
 - **39 of 1,481 distant/regional rows (2.63%)** sit in a genus the catalogue
   covers, so they are really near-OOD.
 
-Both push the reported numbers **pessimistic**, and re-running with buckets
-corrected confirms the direction and the size: precision 0.962 → **0.967**,
-utility +0.673 → +0.686, global-OOD decline 0.970 → 0.992. Small, but it will
-grow with the catalogue — see [`INAT_FINDINGS.md`](INAT_FINDINGS.md) for the
-name-resolution pass and what it says about the 86 species still unevaluated.
+Both push the reported numbers **pessimistic**, and re-running with corrected
+buckets confirms the direction: precision 0.962 → 0.967, utility +0.673 →
++0.686, global-OOD decline 0.970 → 0.992.
+
+**Take the direction, not the magnitudes.** Bucket membership feeds
+`make_splits`, so relabelling 39 rows also moved the calibration/test split
+(calib 2,484 vs 2,522) — `distant_ood`'s test n went *up*, 364 → 368, while 15
+rows left the bucket. The 0.970 → 0.992 jump is far too large for 15 rows and is
+mostly a different test split. The sign is trustworthy; the size is not.
+
+Small either way, but it grows with the catalogue — see
+[`INAT_FINDINGS.md`](INAT_FINDINGS.md) for the name-resolution pass and what it
+says about the 86 species still unevaluated.
 
 ## Reproduce
 
