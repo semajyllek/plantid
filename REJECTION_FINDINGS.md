@@ -19,8 +19,8 @@ Thresholds are fitted on calibration only; every CI is a cluster bootstrap.
 ## The rule
 
 ```
-decline            if genus confidence   < t_genus      # 0.744
-report genus only  if species confidence < t_species    # 0.897
+decline            if genus confidence   < t_genus      # 0.744 -> now 0.486
+report genus only  if species confidence < t_species    # 0.897 -> now 0.555
 report species     otherwise
 ```
 
@@ -325,7 +325,7 @@ point.** Precision at 20% has moved 0.963 → 0.962 → 0.957 and coverage 0.762
 about the model changed. What changed is that the set stopped being drawn from
 the easy end of the catalogue.
 
-### The difficulty gradient is about crowded genera, not rarity
+### Two different mechanisms make species harder
 
 Three cohorts, split by how each species entered the evaluation set:
 
@@ -344,11 +344,17 @@ Two-sample cluster bootstrap on the gaps:
 | broad − recovered | **+0.123 [+0.027, +0.223]** ✓ | +0.011 [−0.018, +0.043] |
 | recovered − targeted | −0.040 [−0.147, +0.065] | +0.001 [−0.035, +0.033] |
 
+`broad` and `targeted` differ by how often the plant is photographed — that is
+the sampling-bias correction, and it is the explanation for that pair. It is
+**not** the explanation for `recovered`, which needs a separate one.
+
 **The prediction that `recovered` would be easy was wrong, and the reason is
 worth more than the prediction was.** These are not rare plants — *Anemone
 nemorosa* has 84,623 research-grade observations and was invisible only because
 the catalogue spells it with a superseded name. Yet it scores like the rarity
-cohort. The explanation is that renamed genera are *large* ones:
+cohort. The explanation is that renamed genera are *large* ones (note the two
+mechanisms are near-independent here: `broad` and `targeted` have almost the
+same congener counts, so congeners cannot explain their gap either):
 
 | cohort | mean catalogue congeners | median |
 |---|---|---|
@@ -369,8 +375,13 @@ catalogue shows the mechanism directly, and it inverts between levels:
 | 6+ | 1,507 | 0.820 | **0.992** |
 
 A species alone in its genus is easy to name and *harder* to place at genus
-level (0.940) — there is no congener to absorb a near miss. A species in a
-crowded genus is hard to name (0.82) and almost impossible to misplace (0.992).
+level (0.940). That is structural, not noise: `gmat` gives such a genus a
+one-column block, so its genus score **is** its species score — verified, they
+are equal on 698 of the 737 zero-congener observations (94.7%), and `genus_ok`
+matches `species_ok` on 98%. **For a species alone in its genus the genus
+fallback provides no lift whatsoever**; there is no congener to absorb a near
+miss. A species in a crowded genus is hard to name (0.82) and almost impossible
+to misplace (0.992).
 **Species and genus difficulty are anti-correlated**, which is precisely the
 structure the genus fallback monetises, and it is why genus accuracy has stayed
 at 0.97 through every expansion while species accuracy fell 0.874 → 0.844.
@@ -385,21 +396,32 @@ split:
 | targeted | 501 | 0.493 | 0.341 | 0.166 |
 | recovered | 69 | **0.362** | **0.507** | 0.130 |
 
-### Near-OOD doubled and is still the weak link
+### Near-OOD doubled: it helped, and it is still the weak link
 
 The fetch grew near-OOD from 290 observations over 64 genera to 618 over 120.
 Because `SPLIT_CLUSTER` clusters this bucket by genus and the bootstrap
-resamples genera, genera — not rows — are what set its precision. Doubling them
-did not stabilise it:
+resamples genera, *genera* — not rows — are what set its precision, so this is
+the growth that should matter. Measured on both rounds with a genus-clustered
+bootstrap:
 
-> near-OOD test: **n = 299 over 60 genera, utility −0.186, 95% CI
-> [−0.685, +0.252]**
+| | test n | test genera | utility | 95% CI | width |
+|---|---|---|---|---|---|
+| before | 144 | 32 | −0.448 | [−1.029, +0.111] | 1.140 |
+| **after** | 299 | 60 | **−0.186** | [−0.685, +0.252] | **0.937** |
 
-The interval spans nearly a full unit of utility. Near-OOD answers wrong 22.1%
-of the time, the worst rate in the table by an order of magnitude, and it
+**Doubling the genera worked in both directions** — utility improved by +0.26
+and the interval narrowed 18%. It is still ~0.94 wide and still spans zero, so
+the bucket remains the loosest thing in this document, but the earlier reading
+that growth "did not help" was wrong.
+
+The uncomfortable part is the ceiling. Near-OOD genera are drawn from the
+catalogue's own genera, of which there are only **172, and 120 are already
+covered**. Fetching harder buys at most another 1.4x, well short of what would
+tighten this interval to the width of the other buckets'. Near-OOD answers wrong
+22.1% of the time — the worst rate in the table by an order of magnitude — and
 carries 32% of the OOD mass in every precision figure above via
 `OOD_MIX_REGIONAL`. **This bucket, not the in-catalogue one, is now the limiting
-factor on what can be claimed.**
+factor on what can be claimed, and more data will not fix it.**
 
 ### The `__OTHER__` pool has been starved, and it is not 800 species
 
@@ -442,10 +464,10 @@ pytest -q                      # 63 tests
   0.960 on 161 species held out of the threshold fit entirely, against 0.963
   in-sample. The λ/μ *surface* is still test-split-derived; the chosen point
   is now validated.
-- ~~Grow near-OOD~~ — **doubled** (64 → 120 genera) and it did **not** help:
-  utility −0.186, 95% CI [−0.685, +0.252] over 60 test genera. Still the
-  weakest link, and now known to be genuinely high-variance rather than merely
-  under-sampled. It answers wrong 22.1% of the time.
+- ~~Grow near-OOD~~ — **doubled** (64 → 120 genera); utility −0.448 → −0.186 and
+  the CI narrowed 1.140 → 0.937. It helped, and it is still the weakest link:
+  the interval spans zero and only 172 catalogue genera exist, so fetching
+  cannot close it. Fixing near-OOD needs a modelling change, not more data.
 - **Rebuild the background pool against the 530-species catalogue.** The reject
   class trains on 149 leaf / 197 flower species, down from 533 / 589, because
   the pool predates the catalogue expansion. This is the largest unaddressed
