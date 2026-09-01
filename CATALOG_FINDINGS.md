@@ -1,4 +1,4 @@
-# v2 catalog: 261 species
+# v2 catalog: 261 → 530 species
 
 The catalog `ROADMAP.md` targets, built and evaluated. Everything here uses
 frozen BioCLIP-2 embeddings and a class-weighted logistic head — no backbone
@@ -23,7 +23,63 @@ so these are now dropped at load time via
 `embed_background.load_background(organ, exclude_species=...)`. Negatives after
 exclusion: leaf 4,840 (381 spp) / flower 5,743 (433 spp) / bark 225 (24 spp).
 
-## Accuracy: species falls, genus does not
+## Expansion to 530 species
+
+The 261 came from requiring **both** leaf and flower ≥20 images. Relaxing that to
+**either** doubles the catalogue without leaving PlantNet-300K — so organ labels
+survive and no new contamination is introduced. A species identifiable from its
+flowers alone is still worth naming, and the per-organ heads already span
+different class sets, so a leaf-only species simply never appears in the flower
+head.
+
+**530 species, 172 genera, 43,506 images** (leaf 20,219 / flower 21,976 / bark
+1,311; 98 species carry usable bark).
+
+### The target was genus accuracy ≥90%. It holds.
+
+| | species @261 | species @530 | genus @261 | **genus @530** |
+|---|---|---|---|---|
+| leaf | 0.781 | 0.733 | 0.959 | **0.944** |
+| bark | 0.832 | 0.840 | 0.952 | 0.893 |
+| flower | 0.843 | 0.774 | 0.979 | **0.972** |
+| **weighted** | **0.814** | **0.757** | **0.969** | **0.957** |
+
+**Doubling the catalogue costs 5.7pp of species accuracy and 1.2pp of genus
+accuracy.** Genus is the robust quantity, which is the whole basis of the
+three-way answer: the level the app can defend degrades far more slowly than the
+level it would prefer to give.
+
+Bark alone lands at 0.893, marginally under the bar — but it is the optional
+organ, spans 95 species, and has 206 test images. Leaf and flower, which the
+capture flow actually requires, are 0.944 and 0.972.
+
+### End to end, the product barely moves
+
+| | @261 | @530 |
+|---|---|---|
+| precision @20% out-of-catalogue | 0.965 | 0.962 |
+| coverage @20% | 0.747 | **0.763** |
+| mean utility (test) | +0.723 | +0.684 |
+
+Coverage actually improves: a larger catalogue means fewer real plants fall
+outside it, which is the point. **Twice the species for essentially no
+product-level cost.**
+
+### Two corrections the expansion forced
+
+**The splitter could not handle tiny groups.** A species admitted on leaf alone
+may have a single flower image, and the 70/15/15 split produced a negative test
+count. Groups under three images now go to training only, with an assertion.
+
+**Catalogue growth silently invalidates the evaluation buckets.** Bucket
+membership is a property of the catalogue, not the observation: at 530 species,
+**65 near-OOD observations (18.5%) had become catalogue species** and would have
+been scored as plants the model should reject while being plants it is meant to
+name. `inat_eval.relabel_buckets` now recomputes membership against the current
+catalogue — it moved 84 observations — and must be re-run after any catalogue
+change.
+
+## Accuracy at 261 species: species falls, genus does not
 
 | organ | n_train | n_test | species @261 | (was @87) | **genus @261** | (was @87) | genera |
 |---|---|---|---|---|---|---|---|

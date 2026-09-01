@@ -40,15 +40,20 @@ def cap_and_split(df: pd.DataFrame, cap: int = 60, seed: int = 42) -> pd.DataFra
         group = group.head(cap)
 
         n = len(group)
-        n_val = max(1, round(0.15 * n))
-        n_test = max(1, round(0.15 * n))
-        n_train = n - n_val - n_test
-        if n_train < 1:
-            n_train = 1
-            n_val = max(1, (n - n_train) // 2)
-            n_test = n - n_train - n_val
-
-        split = ["train"] * n_train + ["val"] * n_val + ["test"] * n_test
+        if n < 3:
+            # too few to give every split a row; keep them for training only.
+            # `require="either"` admits species covered by one organ, which can
+            # leave a handful of images of the other — enough to learn from,
+            # not enough to evaluate on.
+            split = ["train"] * n
+        else:
+            n_val = max(1, round(0.15 * n))
+            n_test = max(1, round(0.15 * n))
+            n_train = n - n_val - n_test
+            if n_train < 1:
+                n_train, n_val, n_test = 1, 1, n - 2
+            split = ["train"] * n_train + ["val"] * n_val + ["test"] * n_test
+        assert len(split) == n, f"split {len(split)} != group {n}"
         group = group.iloc[: len(split)].copy()
         group["split"] = split
         rows.append(group)

@@ -25,15 +25,29 @@ REQUIRED_ORGANS = ("leaf", "flower")
 OPPORTUNISTIC_ORGANS = ("bark",)
 
 
-def select_catalog(min_leaf_flower: int = 20, min_opportunistic: int = 5, cap: int = 60, seed: int = 42):
-    """Species with >= min_leaf_flower of BOTH leaf and flower; bark added where available."""
+def select_catalog(min_leaf_flower: int = 20, min_opportunistic: int = 5, cap: int = 60,
+                   seed: int = 42, require: str = "both"):
+    """Species with >= min_leaf_flower of leaf and flower; bark added where available.
+
+    `require="both"` gives 261 species; `require="either"` gives 530, admitting
+    species that are well covered by only one of the two organs.
+    """
     df = load_metadata()
     names = load_species_names()
     counts = df.groupby(["species_id", "organ"]).size().unstack(fill_value=0)
 
-    ok = pd.Series(True, index=counts.index)
-    for organ in REQUIRED_ORGANS:
-        ok &= counts.get(organ, 0) >= min_leaf_flower
+    if require == "both":
+        ok = pd.Series(True, index=counts.index)
+        for organ in REQUIRED_ORGANS:
+            ok &= counts.get(organ, 0) >= min_leaf_flower
+    else:
+        # "either" doubles the catalogue: a species usable from its flowers alone
+        # is still worth naming. The per-organ heads already span different class
+        # sets (bark covers a minority of species), so a leaf-only species simply
+        # does not appear in the flower head.
+        ok = pd.Series(False, index=counts.index)
+        for organ in REQUIRED_ORGANS:
+            ok |= counts.get(organ, 0) >= min_leaf_flower
     species = set(counts.index[ok])
 
     keep_organs = list(REQUIRED_ORGANS) + list(OPPORTUNISTIC_ORGANS)
@@ -61,11 +75,14 @@ def main():
     ap.add_argument("--min-leaf-flower", type=int, default=20)
     ap.add_argument("--min-opportunistic", type=int, default=5)
     ap.add_argument("--cap", type=int, default=60)
+    ap.add_argument("--require", choices=["both", "either"], default="both",
+                    help="whether a species needs >=N of BOTH leaf and flower, or either")
     ap.add_argument("--no-download", action="store_true")
     ap.add_argument("--max-workers", type=int, default=32)
     args = ap.parse_args()
 
-    index = select_catalog(args.min_leaf_flower, args.min_opportunistic, args.cap)
+    index = select_catalog(args.min_leaf_flower, args.min_opportunistic, args.cap,
+                           require=args.require)
     print(f"catalog: {index.species_id.nunique()} species, {len(index)} images")
     print(index.groupby("organ").size().to_string())
     print(index.groupby(["organ", "split"]).size().unstack(fill_value=0).to_string())

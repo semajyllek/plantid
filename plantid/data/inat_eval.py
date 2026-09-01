@@ -213,3 +213,38 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def relabel_buckets(cache_dir=DATA_PROCESSED, manifest=MANIFEST,
+                    catalog="catalog_index.parquet"):
+    """Recompute every observation's bucket against the *current* catalogue.
+
+    Bucket membership is a property of the catalogue, not of the observation, so
+    any change to the catalogue silently invalidates it. Growing from 261 to 530
+    species moved 18.5% of the near-OOD bucket into the catalogue — those
+    observations would otherwise have been scored as plants the model should
+    reject while being plants it is supposed to name.
+
+    Returns the relabelled frame and a summary of what moved.
+    """
+    df = pd.read_parquet(cache_dir / manifest)
+    cat = pd.read_parquet(cache_dir / catalog)
+    species = {" ".join(str(n).split()[:2]) for n in cat["species_name"].unique()}
+    genera = {s.split()[0] for s in species}
+
+    binom = df["species_name"].map(lambda n: " ".join(str(n).split()[:2]))
+    in_sp = binom.isin(species)
+    in_gen = binom.map(lambda n: n.split()[0] in genera)
+
+    was = df["bucket"].copy()
+    # a regional OOD observation stays regional when it is still out of catalogue
+    regional = was == "regional_ood"
+    new = pd.Series("distant_ood", index=df.index)
+    new[regional] = "regional_ood"
+    new[in_gen & ~in_sp] = "near_ood"
+    new[in_sp] = "in_catalog"
+
+    df = df.copy()
+    df["bucket"] = new
+    moved = pd.crosstab(was, new)
+    return df, moved
