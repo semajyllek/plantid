@@ -31,6 +31,7 @@ Usage:
 """
 
 import argparse
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -63,15 +64,26 @@ def _get(params, retries=3):
     return {"results": []}
 
 
-def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTOS):
+def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTOS,
+          name_map=None):
+    """`name_map` rewrites iNat's current binomial to the catalogue's own.
+
+    The catalogue carries PlantNet's pre-split names, so an observation of
+    *Anemonoides nemorosa* is the plant `Anemone nemorosa` names. Without the
+    rewrite it fails the `in_sp` test below and is discarded as out-of-catalogue
+    — and, downstream, `build_observations` would score it against a head class
+    that spells the species differently. The original name is kept as
+    `inat_name` so the substitution stays auditable.
+    """
     out = []
     for o in results:
         taxon = o.get("taxon") or {}
         if taxon.get("rank") != "species":
             continue
-        name = taxon.get("name") or ""
-        if len(name.split()) < 2:
+        inat_name = taxon.get("name") or ""
+        if len(inat_name.split()) < 2:
             continue
+        name = (name_map or {}).get(inat_name, inat_name)
         genus = name.split()[0]
         in_sp, in_gen = name in catalog_species, genus in catalog_genera
         if bucket == "in_catalog" and not in_sp:
@@ -84,33 +96,44 @@ def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTO
         if len(photos) < min_photos:
             continue
         out.append({"obs_id": o["id"], "species_name": name, "genus": genus,
-                    "bucket": bucket, "photo_urls": photos})
+                    "inat_name": inat_name, "bucket": bucket, "photo_urls": photos})
     return out
 
 
 def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS,
-          per_species=3, per_genus=4, buckets=None, query_species=None):
+          per_species=3, per_genus=4, buckets=None, query_species=None, query_taxa=None,
+          name_map=None):
     """Collect observations per bucket. `min_photos` filters at fetch time, so
     raising it means querying more broadly rather than discarding later.
 
     `per_species` / `per_genus` cap how many observations each query contributes,
     which is what limits the in-catalog and near-OOD bucket sizes: raise them to
-    grow those buckets without issuing more requests."""
+    grow those buckets without issuing more requests.
+
+    `query_taxa` queries by iNat `taxon_id` instead of `taxon_name`, which
+    matters more than it sounds: `taxon_name` is a *fuzzy* match on the
+    observations endpoint and returns related taxa, so a species with 56,684
+    observations can come back as 100 pages of a commoner congener
+    (`Lactuca sativa` -> *Lactuca serriola*). `taxon_id` is exact."""
     rows = []
     have = lambda b: len([r for r in rows if r["bucket"] == b])  # noqa: E731
     want = (lambda b: buckets is None or b in buckets)
 
-    # in-catalog: query species by species. `query_species` narrows which ones are
-    # asked for without changing what counts as in-catalogue, so an existing
-    # evaluation set can be topped up for species it does not yet cover.
-    to_query = sorted(query_species) if query_species is not None else sorted(catalog_species)
-    for name in pd.Series(to_query).sample(len(to_query), random_state=seed):
+    # in-catalog: query species by species. `query_species` / `query_taxa` narrow
+    # which ones are asked for without changing what counts as in-catalogue, so
+    # an existing evaluation set can be topped up for species it does not cover.
+    if query_taxa is not None:
+        to_query = [{"taxon_id": t} for t in sorted(query_taxa)]
+    else:
+        names = sorted(query_species) if query_species is not None else sorted(catalog_species)
+        to_query = [{"taxon_name": n} for n in names]
+    for params in pd.Series(to_query).sample(len(to_query), random_state=seed):
         if not want("in_catalog") or have("in_catalog") >= per_bucket:
             break
-        j = _get({"taxon_name": name, "quality_grade": "research", "photos": "true",
+        j = _get({**params, "quality_grade": "research", "photos": "true",
                   "per_page": 100, "locale": "en"})
         rows += _rows(j.get("results", []), "in_catalog", catalog_species,
-                      catalog_genera, min_photos)[:per_species]
+                      catalog_genera, min_photos, name_map)[:per_species]
         time.sleep(SLEEP)
 
     # near-OOD is rare under random sampling (genus in catalog, species not), so
@@ -121,7 +144,7 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
         j = _get({"taxon_name": genus, "quality_grade": "research", "photos": "true",
                   "per_page": 100, "locale": "en"})
         rows += _rows(j.get("results", []), "near_ood", catalog_species,
-                      catalog_genera, min_photos)[:per_genus]
+                      catalog_genera, min_photos, name_map)[:per_genus]
         time.sleep(SLEEP)
 
     # OOD buckets, both "neither species nor genus in the catalogue", sampled
@@ -140,8 +163,8 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
             res = j.get("results", [])
             if not res:
                 break
-            rows += _rows(res, bucket, catalog_species, catalog_genera, min_photos)[
-                : per_bucket - have(bucket)]
+            rows += _rows(res, bucket, catalog_species, catalog_genera, min_photos,
+                          name_map)[: per_bucket - have(bucket)]
             page += 1
             time.sleep(SLEEP)
 
@@ -185,6 +208,10 @@ def main():
     ap.add_argument("--species-file", default=None,
                     help="newline-separated binomials to query for in_catalog; "
                          "does not change what counts as in-catalogue")
+    ap.add_argument("--taxa-file", default=None,
+                    help="JSON from plantid.data.resolve_taxa: queries in_catalog by "
+                         "taxon_id and maps each resolved name back to its catalogue "
+                         "binomial. Use for species whose catalogue name is a synonym.")
     ap.add_argument("--buckets", default=None,
                     help="comma-separated subset to fetch; existing rows for other buckets are kept")
     ap.add_argument("--no-download", action="store_true")
@@ -200,9 +227,19 @@ def main():
     if args.species_file:
         qs = [ln.strip() for ln in open(args.species_file) if ln.strip()]
         print(f"querying {len(qs)} specific species for in_catalog")
+
+    taxa, name_map = None, None
+    if args.taxa_file:
+        recs = [r for r in json.load(open(args.taxa_file)) if r.get("taxon_id")]
+        taxa = [r["taxon_id"] for r in recs]
+        name_map = {r["resolved"]: r["catalog_name"] for r in recs
+                    if r["resolved"] != r["catalog_name"]}
+        print(f"querying {len(taxa)} taxon_ids for in_catalog, "
+              f"{len(name_map)} of them under a renamed taxon")
+
     df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos,
                per_species=args.per_species, per_genus=args.per_genus, buckets=wanted,
-               query_species=qs)
+               query_species=qs, query_taxa=taxa, name_map=name_map)
     print(df.groupby("bucket").size().to_string())
 
     if not args.no_download:

@@ -296,6 +296,42 @@ So the honest accounting of the original 247: **161 closed, 57 cheaply closable
 (49 renamed, 8 crowded out), ~29 blocked for reasons that are properties of the
 catalogue rather than of iNaturalist.** Roughly 88% of the hole is reachable.
 
+### Round 5: the recovery, and how stale the catalogue actually is
+
+`--taxa-file` was added to `inat_eval`, querying by `taxon_id` and rewriting each
+result back to the catalogue's binomial before the in-catalogue membership test
+(`_rows(..., name_map)` — without the rewrite every recovered observation is
+discarded as out-of-catalogue, which is the failure the fetch had all along).
+55 taxa were queried; the collision `Sedum adolphii` / `Sedum nussbaumerianum`
+→ *Sedum adolphi* was dropped rather than allowed to merge two classes.
+
+Result: **+153 observations covering 54 species. Catalogue coverage 250 → 411 →
+465 of 497.** 139 rows are stored under a rewritten name, with the iNat name
+kept in `inat_name` for audit.
+
+Resolving all 497 catalogue names, not just the failures, gives the standalone
+number: **47 of 497 (9.5%) are a taxonomic generation behind.** And the
+correspondence with the fetch failures is exact in both directions —
+
+> **All 50 renamed species were among the 86 that returned nothing, and not one
+> renamed species was found by a `taxon_name` fetch.**
+
+Being behind on nomenclature was not merely correlated with the empty result; on
+this catalogue it was the whole of it. The renames cluster in the genera that
+get split precisely because they are large: 15 *Anemone* (→ *Anemonoides*,
+*Pulsatilla*, *Hepatica*, *Anemonastrum*, *Eriocapitella*), 6 *Sedum*
+(→ *Petrosedum*, *Phedimus*), 5 *Papaver* (→ *Oreomecon*, *Roemeria*).
+
+That clustering has a measurable consequence, and it contradicts the obvious
+prediction. *Anemone nemorosa* has 84,623 research-grade observations — these
+are not rare plants, so the recovered cohort ought to score like the easy one.
+It does not: species accuracy 0.748, statistically indistinguishable from the
+rarity cohort's 0.786 and significantly below 0.873. The reason is that a
+recovered species has a median of **10 catalogue congeners against 3** for the
+other cohorts. See [`REJECTION_FINDINGS.md`](REJECTION_FINDINGS.md) for the
+congener-vs-accuracy breakdown, which shows species and genus difficulty running
+in *opposite* directions.
+
 The same naming gap also leaks into bucketing, because bucket membership is a
 binomial string match — measured at 0.34% of OOD rows and quantified in
 `REJECTION_FINDINGS.md`. It is small now and grows with the catalogue.

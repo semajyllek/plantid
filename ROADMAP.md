@@ -84,9 +84,9 @@ the "don't waste compute" discipline made structural.
 casual photo, and chasing it would produce a worse product. The right target:
 
 > **Precision at coverage, with an abstain option — and a genus level between
-> them.** Delivered: at an assumed 20% out-of-catalogue rate, **96.2% precision
-> on 74% of captures**, on 497 species and 5,055 real observations
-> (`REJECTION_FINDINGS.md`). The earlier "99.0% on 58%" was the λ=0.5/μ=2 row on
+> them.** Delivered: at an assumed 20% out-of-catalogue rate, **95.7% precision
+> on 72% of captures**, on 497 species and 5,534 real observations covering
+> 465 of them (`REJECTION_FINDINGS.md`). The earlier "99.0% on 58%" was the λ=0.5/μ=2 row on
 > a 261-species catalogue, before thresholds were anchored to a stated
 > prevalence. Anchoring — plus a harder, twice-as-large species set — is what
 > traded precision for coverage; raising `mu` to 4 pushed the other way

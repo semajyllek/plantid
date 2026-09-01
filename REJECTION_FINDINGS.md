@@ -7,7 +7,7 @@ Replaces the single accept/reject threshold on `P(__OTHER__)`, which accepted
 > at `mu=2`, on a 261-species catalogue and 2,601 observations, before
 > thresholds were anchored to a stated deployment prevalence. The rule, the
 > nesting argument and the reasoning are unchanged; for current figures jump to
-> [Current numbers](#current-numbers-497-species-5055-observations).
+> [Current numbers](#current-numbers-497-species-5534-observations).
 
 Evaluated on **2,601 real iNaturalist observations** (750 in-catalogue / 351
 near-OOD / 750 global-OOD / 750 regional-OOD, 9,785 photos), split calibration
@@ -104,6 +104,11 @@ PlantNet species, which are themselves temperate Europe/NA plants. The reject
 class has already been trained on this distribution. That also predicts the
 result would *not* hold for a region the catalogue and background pool do not
 cover — a tropical deployment would need its own background pool.
+
+> **The "800 species" is wrong** — it is the size of the file, not of the pool
+> the head trains on, which is 149 leaf / 197 flower species after exclusions.
+> The conclusion survives; the stated reason does not. See
+> [The `__OTHER__` pool has been starved](#the-__other__-pool-has-been-starved-and-it-is-not-800-species).
 
 ## Precision depends mostly on how often users photograph unknown plants
 
@@ -273,132 +278,156 @@ Exchangeability is only approximate here (~6 correlated observations per
 species), so `conformal_threshold` samples one observation per cluster by
 default.
 
-## Current numbers: 497 species, 5,055 observations
+## Current numbers: 497 species, 5,534 observations
 
 The evaluation set had a hole in it. 247 of the catalogue's 497 species had **no
-real observation at all** and were scored only on the PlantNet test split —
-the same corpus their head was fitted on. A targeted per-species fetch
-(`inat_eval.py --species-file`) closed 161 of those 247. The set is now:
+real observation at all** and were scored only on the PlantNet test split — the
+same corpus their head was fitted on. Two fetches closed most of it: a targeted
+per-species query (161 species), then a `taxon_id` query for species whose
+catalogue name is a superseded synonym (54 more, see
+[`INAT_FINDINGS.md`](INAT_FINDINGS.md)). Coverage went **250 → 411 → 465 of
+497**. The same run grew near-OOD from 64 to 120 catalogue genera.
 
 | bucket | observations | photos | distinct |
 |---|---|---|---|
-| in-catalogue | 3,284 | 12,451 | 411 species |
-| near-OOD | 290 | 1,092 | 64 genera |
+| in-catalogue | 3,435 | 12,888 | 465 species |
+| near-OOD | 618 | 2,058 | 120 genera |
 | global-OOD | 737 | 2,793 | — |
 | regional-OOD | 744 | 2,755 | — |
-| **total** | **5,055** | **19,091** | |
+| **total** | **5,534** | **20,494** | |
 
-Fitted thresholds: `t_genus = 0.478`, `t_species = 0.545`, at `mu=4` and an
+Fitted thresholds: `t_genus = 0.486`, `t_species = 0.555`, at `mu=4` and an
 assumed 20% out-of-catalogue rate.
 
 | | mean utility (test) | 95% CI |
 |---|---|---|
-| baseline, single threshold | −0.525 | [−0.703, −0.356] |
-| **three-way rule** | **+0.673** | [+0.614, +0.726] |
-| **paired gain** | **+1.198** | **[+1.051, +1.362]** ✓ |
+| baseline, single threshold | −0.586 | [−0.755, −0.428] |
+| **three-way rule** | **+0.595** | [+0.521, +0.657] |
+| **paired gain** | **+1.181** | **[+1.047, +1.330]** ✓ |
 
 | bucket | n | species | genus | decline | answered wrong |
 |---|---|---|---|---|---|
-| in-catalogue | 1,644 | 0.566 | 0.324 | 0.110 | 0.010 |
-| near-OOD | **144** | 0.243 | 0.215 | 0.542 | **0.271** |
-| global-OOD | 364 | 0.016 | 0.014 | 0.970 | 0.030 |
-| regional-OOD | 381 | 0.008 | 0.010 | 0.982 | 0.018 |
+| in-catalogue | 1,734 | 0.521 | 0.349 | 0.130 | 0.018 |
+| near-OOD | 299 | 0.197 | 0.187 | 0.615 | **0.221** |
+| global-OOD | 364 | 0.019 | 0.011 | 0.970 | 0.030 |
+| regional-OOD | 373 | 0.013 | 0.005 | 0.981 | 0.019 |
 
 | assumed OOD rate | global precision | coverage | regional precision | coverage |
 |---|---|---|---|---|
-| 60% | 0.850 | 0.456 | 0.859 | 0.451 |
-| 40% | 0.918 | 0.601 | 0.923 | 0.598 |
-| **20%** | **0.960** | **0.745** | **0.962** | **0.744** |
-| 10% | 0.976 | 0.818 | 0.976 | 0.817 |
+| 60% | 0.858 | 0.434 | 0.867 | 0.430 |
+| 40% | 0.919 | 0.580 | 0.924 | 0.576 |
+| **20%** | **0.955** | **0.725** | **0.957** | **0.723** |
+| 10% | 0.968 | 0.798 | 0.969 | 0.797 |
 
-**Near-OOD is on 144 observations** and is the one bucket the top-up did not
-grow, while carrying 32% of the OOD mass in every precision figure above. Its
-0.271 answered-wrong is the worst number in the table and it is also the least
-solid; do not read it as comparable to the 1,644-row in-catalogue line.
+**Every headline number here is lower than the last two rounds, and that is the
+point.** Precision at 20% has moved 0.963 → 0.962 → 0.957 and coverage 0.762 →
+0.744 → 0.723 across three successive expansions of the evaluation set. Nothing
+about the model changed. What changed is that the set stopped being drawn from
+the easy end of the catalogue.
 
-### Adding 919 harder observations barely moved the operating point
+### The difficulty gradient is about crowded genera, not rarity
 
-Replaying the *previous* manifest through *today's* code separates what this
-data changed from what `mu=4` and prevalence anchoring changed two commits ago:
-
-| | species | t_genus / t_species | in-cat species acc | genus acc | precision @20% | coverage |
-|---|---|---|---|---|---|---|
-| before top-up | 250 | 0.474 / 0.495 | 0.874 | 0.980 | 0.963 | 0.762 |
-| **after top-up** | 411 | 0.478 / 0.545 | **0.850** | 0.975 | 0.962 | 0.744 |
-
-The aggregate operating point is essentially unchanged — which is
-`deployment_weights` working as designed, since it anchors to a stated
-prevalence rather than to the evaluation set's composition. **The movement is
-not in the aggregate; it is in the cohort split.**
-
-### The new species are harder, and that is the finding
-
-The 250 species that turned up under broad queries versus the 161 that only
-appeared when asked for by name — that ordering ranks species by how heavily
-photographed they are, which is exactly the sampling bias this document has been
-listing as its dominant caveat. Correcting part of it should cost accuracy:
+Three cohorts, split by how each species entered the evaluation set:
 
 | cohort | obs | species | species accuracy | genus accuracy |
 |---|---|---|---|---|
-| broad-query ("established") | 2,371 | 250 | 0.872 [0.841, 0.900] | 0.978 [0.966, 0.987] |
-| targeted ("new") | 913 | 161 | **0.791** [0.738, 0.841] | 0.967 [0.948, 0.984] |
-| combined | 3,284 | 411 | 0.850 [0.823, 0.875] | 0.975 [0.965, 0.984] |
+| **broad** — surfaced under untargeted queries | 2,371 | 250 | 0.873 [0.841, 0.901] | 0.978 |
+| **targeted** — appeared only when asked for | 913 | 161 | 0.786 [0.733, 0.836] | 0.966 |
+| **recovered** — needed a `taxon_id`, name was stale | 151 | 54 | 0.748 [0.651, 0.840] | 0.967 |
+| combined | 3,435 | 465 | 0.844 [0.818, 0.868] | 0.974 |
 
-Two-sample cluster bootstrap on the gap:
+Two-sample cluster bootstrap on the gaps:
 
-- species: **+0.081, 95% CI [+0.025, +0.141]** ✓ excludes zero
-- genus: +0.011, 95% CI [−0.008, +0.032] — includes zero
+| | species | genus |
+|---|---|---|
+| broad − targeted | **+0.086 [+0.030, +0.145]** ✓ | +0.012 [−0.008, +0.033] |
+| broad − recovered | **+0.123 [+0.027, +0.223]** ✓ | +0.011 [−0.018, +0.043] |
+| recovered − targeted | −0.040 [−0.147, +0.065] | +0.001 [−0.035, +0.033] |
 
-**Species accuracy is significantly worse on the under-photographed cohort;
-genus accuracy is not.** That is the strongest evidence yet for the genus-first
-design: the level the product leans on is the level that survives the harder
-sample. The rule responds correctly without being retuned — on the new cohort it
-answers species 49.0% of the time against 59.5%, and declines 14.5% against 9.7%.
+**The prediction that `recovered` would be easy was wrong, and the reason is
+worth more than the prediction was.** These are not rare plants — *Anemone
+nemorosa* has 84,623 research-grade observations and was invisible only because
+the catalogue spells it with a superseded name. Yet it scores like the rarity
+cohort. The explanation is that renamed genera are *large* ones:
 
-### The operating point transfers to species it was never fitted on
+| cohort | mean catalogue congeners | median |
+|---|---|---|
+| broad | 8.2 | 3 |
+| targeted | 7.5 | 3 |
+| **recovered** | **13.4** | **10** |
 
-The top open item in this document was that the λ/μ surface had been read off
-the test split. The 161 newly-covered species are fresh: refitting on a
-calibration set with **every new-cohort observation removed** gives
-`t_genus = 0.479`, `t_species = 0.547` (against 0.478 / 0.545 with them), and
-applying those thresholds to the new cohort's test rows:
+The recovered cohort is 46 *Anemone*, 19 *Sedum*, 15 *Papaver* — exactly the
+genera that have been split, because being large is what gets a genus split.
+Pooling all cohorts and binning by how many congeners a species has in the
+catalogue shows the mechanism directly, and it inverts between levels:
 
-| cohort | n | utility | precision @20% OOD | coverage |
+| catalogue congeners | obs | species accuracy | genus accuracy |
+|---|---|---|---|
+| 0 | 737 | **0.961** | 0.940 |
+| 1–2 | 642 | 0.807 | 0.961 |
+| 3–5 | 549 | 0.800 | 0.985 |
+| 6+ | 1,507 | 0.820 | **0.992** |
+
+A species alone in its genus is easy to name and *harder* to place at genus
+level (0.940) — there is no congener to absorb a near miss. A species in a
+crowded genus is hard to name (0.82) and almost impossible to misplace (0.992).
+**Species and genus difficulty are anti-correlated**, which is precisely the
+structure the genus fallback monetises, and it is why genus accuracy has stayed
+at 0.97 through every expansion while species accuracy fell 0.874 → 0.844.
+
+The rule responds to this without being retuned. On the recovered cohort it
+answers **genus 50.7% of the time against species 36.2%**, inverting its usual
+split:
+
+| cohort | n (test) | species | genus | decline |
 |---|---|---|---|---|
-| established (in-sample species) | 1,195 | +0.698 [+0.644, +0.751] | 0.963 | 0.754 |
-| **new (out-of-sample species)** | 449 | +0.616 [+0.528, +0.694] | **0.960** | 0.716 |
+| broad | 1,164 | 0.543 | 0.343 | 0.114 |
+| targeted | 501 | 0.493 | 0.341 | 0.166 |
+| recovered | 69 | **0.362** | **0.507** | 0.130 |
 
-**Precision holds at 0.960 on species absent from the fit, with coverage falling
-0.754 → 0.716** — the rule declines more on harder plants, which is what it is
-supposed to do. Scoped claim: this validates the operating point against
-*unseen species*, not the threshold-fitting procedure in general. `t_genus` is
-largely set by the OOD buckets, which were identical in both fits.
+### Near-OOD doubled and is still the weak link
 
-### Catalogue synonyms mislabel a small slice of the OOD buckets
+The fetch grew near-OOD from 290 observations over 64 genera to 618 over 120.
+Because `SPLIT_CLUSTER` clusters this bucket by genus and the bootstrap
+resamples genera, genera — not rows — are what set its precision. Doubling them
+did not stabilise it:
 
-The catalogue carries PlantNet's pre-split names (`Anemone nemorosa`,
-`Sedum kamtschaticum`), so an observation filed under iNat's current name
-(`Anemonoides nemorosa`, `Phedimus kamtschaticus`) escapes the binomial match
-that assigns buckets — and lands in an OOD bucket while being a plant the model
-is supposed to name. Checked rather than assumed:
+> near-OOD test: **n = 299 over 60 genera, utility −0.186, 95% CI
+> [−0.685, +0.252]**
 
-- **6 of 1,771 OOD rows (0.34%)** are catalogue species under a modern name.
-- **39 of 1,481 distant/regional rows (2.63%)** sit in a genus the catalogue
-  covers, so they are really near-OOD.
+The interval spans nearly a full unit of utility. Near-OOD answers wrong 22.1%
+of the time, the worst rate in the table by an order of magnitude, and it
+carries 32% of the OOD mass in every precision figure above via
+`OOD_MIX_REGIONAL`. **This bucket, not the in-catalogue one, is now the limiting
+factor on what can be claimed.**
 
-Both push the reported numbers **pessimistic**, and re-running with corrected
-buckets confirms the direction: precision 0.962 → 0.967, utility +0.673 →
-+0.686, global-OOD decline 0.970 → 0.992.
+### The `__OTHER__` pool has been starved, and it is not 800 species
 
-**Take the direction, not the magnitudes.** Bucket membership feeds
-`make_splits`, so relabelling 39 rows also moved the calibration/test split
-(calib 2,484 vs 2,522) — `distant_ood`'s test n went *up*, 364 → 368, while 15
-rows left the bucket. The 0.970 → 0.992 jump is far too large for 15 rows and is
-mostly a different test split. The sign is trustworthy; the size is not.
+This document has said the reject pool is "800 PlantNet species". That is the
+size of the *file*. What the head actually trains on, after `load_background`
+drops catalogue species by `species_id` and evaluation species by binomial:
 
-Small either way, but it grows with the catalogue — see
-[`INAT_FINDINGS.md`](INAT_FINDINGS.md) for the name-resolution pass and what it
-says about the 86 species still unevaluated.
+| organ | in pool | after catalogue exclusion | after eval exclusion | rows kept |
+|---|---|---|---|---|
+| leaf | 533 | 175 | **149** | 1,340 of 8,519 (16%) |
+| flower | 589 | 236 | **197** | 1,884 of 9,422 (20%) |
+| bark | 23 | 13 | 13 | 120 of 225 |
+
+**Almost all of the loss is the catalogue exclusion, not the eval one.** The
+background pool was built against the 261-species catalogue; the catalogue then
+grew to 530, so two-thirds of the pool became species we now want to
+*recognise*. `load_background`'s docstring anticipates this — "the pool was
+built against an earlier, smaller catalogue" — but the size of the effect was
+never measured, and the 800-species figure was left standing in the argument for
+why regional OOD is not harder than global OOD.
+
+That argument may still hold: 149–197 temperate Europe/NA species is a thinner
+reject class but not a differently-distributed one, and regional OOD still
+declines at 98.1% against global's 97.0%. But **the stated reason is wrong by a
+factor of four**, and the pool should be rebuilt against the 530-species
+catalogue before the claim is quoted again. Growing near-OOD in this round cost
+a further 10 leaf / 13 flower species, so this shrinks every time the evaluation
+set grows.
 
 ## Reproduce
 
@@ -413,11 +442,21 @@ pytest -q                      # 63 tests
   0.960 on 161 species held out of the threshold fit entirely, against 0.963
   in-sample. The λ/μ *surface* is still test-split-derived; the chosen point
   is now validated.
-- **Grow near-OOD.** 144 test observations carrying 32% of the OOD mass, with
-  the worst answered-wrong rate in the table, is the weakest link in every
-  precision figure quoted here.
-- **Modernise the catalogue's names.** 0.34% of OOD rows are catalogue species
-  in disguise; the fix is a one-time resolution pass, not a threshold change.
+- ~~Grow near-OOD~~ — **doubled** (64 → 120 genera) and it did **not** help:
+  utility −0.186, 95% CI [−0.685, +0.252] over 60 test genera. Still the
+  weakest link, and now known to be genuinely high-variance rather than merely
+  under-sampled. It answers wrong 22.1% of the time.
+- **Rebuild the background pool against the 530-species catalogue.** The reject
+  class trains on 149 leaf / 197 flower species, down from 533 / 589, because
+  the pool predates the catalogue expansion. This is the largest unaddressed
+  defect in the rejection path and it worsens every time the eval set grows.
+- **Modernise the catalogue's names.** 47 of 497 (9.5%) are superseded. The
+  recovery fetch works around this per-observation via `name_map`; the
+  catalogue itself is still wrong, and 0.34% of OOD rows are catalogue species
+  in disguise.
+- **32 species remain unevaluated** — 9 hybrid placeholders that are not
+  species, 7 cultivated-only, 6 contested *Ophrys* microspecies, the rest
+  unresolved.
 - **Test the conformal genus-containment rule** against the fixed `t_species`.
 - ~~`distant_ood` is easier than deployment OOD~~ — **tested and resolved**: a
   region-restricted bucket declines at 98.7%, versus 98.1% global. The concern
