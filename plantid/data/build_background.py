@@ -55,7 +55,12 @@ def main():
     ap.add_argument("--max-workers", type=int, default=32)
     args = ap.parse_args()
 
-    catalog = set(pd.read_parquet(DATA_PROCESSED / "plantnet_index.parquet")["species_id"].unique())
+    # `catalog_index.parquet`, not `plantnet_index.parquet`: the latter is the
+    # 87-species v1 working set, so building against it left 443 species in the
+    # pool that the catalogue has since claimed — species the reject class would
+    # then be taught to reject. `load_background` filters them at load time, so
+    # nothing downstream was ever wrong, but the manifest on disk was.
+    catalog = set(pd.read_parquet(DATA_PROCESSED / "catalog_index.parquet")["species_id"].unique())
     index = select_background(catalog, cap=args.cap, min_per_organ=args.min_per_organ)
     print(f"catalog species (excluded): {len(catalog)}")
     print(f"background: {index.species_id.nunique()} species, {len(index)} images")

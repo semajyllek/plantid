@@ -108,7 +108,7 @@ cover — a tropical deployment would need its own background pool.
 > **The "800 species" is wrong** — it is the size of the file, not of the pool
 > the head trains on, which is 149 leaf / 197 flower species after exclusions.
 > The conclusion survives; the stated reason does not. See
-> [The `__OTHER__` pool has been starved](#the-__other__-pool-has-been-starved-and-it-is-not-800-species).
+> [The `__OTHER__` pool is not 800 species](#the-__other__-pool-is-not-800-species--and-its-size-does-not-matter).
 
 ## Precision depends mostly on how often users photograph unknown plants
 
@@ -423,7 +423,7 @@ carries 32% of the OOD mass in every precision figure above via
 `OOD_MIX_REGIONAL`. **This bucket, not the in-catalogue one, is now the limiting
 factor on what can be claimed, and more data will not fix it.**
 
-### The `__OTHER__` pool has been starved, and it is not 800 species
+### The `__OTHER__` pool is not 800 species — and its size does not matter
 
 This document has said the reject pool is "800 PlantNet species". That is the
 size of the *file*. What the head actually trains on, after `load_background`
@@ -443,13 +443,52 @@ built against an earlier, smaller catalogue" — but the size of the effect was
 never measured, and the 800-species figure was left standing in the argument for
 why regional OOD is not harder than global OOD.
 
-That argument may still hold: 149–197 temperate Europe/NA species is a thinner
-reject class but not a differently-distributed one, and regional OOD still
-declines at 98.1% against global's 97.0%. But **the stated reason is wrong by a
-factor of four**, and the pool should be rebuilt against the 530-species
-catalogue before the claim is quoted again. Growing near-OOD in this round cost
-a further 10 leaf / 13 flower species, so this shrinks every time the evaluation
-set grows.
+So **the stated reason is wrong by a factor of four.** Two follow-ups were then
+run, and both contradict the natural next move.
+
+**"Starved" was the wrong word, and rebuilding recovers nothing.** Re-running
+`select_background` against the current 530-species catalogue returns
+**175 leaf / 236 flower / 13 bark species — the identical set**, 0 species
+gained. The pool is small because PlantNet holds only 1,081 species, the
+catalogue now claims 530 of them, and few of the rest have ≥5 images of an
+organ. This is not decay to be repaired; it is arithmetic. **Growing the
+catalogue necessarily shrinks the reject pool**, and the only route to a larger
+one is a different corpus.
+
+*(A real bug did surface: `build_background.main()` took its exclusion set from
+`plantnet_index.parquet` — the 87-species v1 working set — so 443 of the
+manifest's 800 species are ones the catalogue has since claimed. `load_background`
+filters them at load time, so nothing downstream was ever trained wrong; the
+file on disk was. Fixed.)*
+
+**And pool size does not bind, so no corpus is needed.** Subsampling the pool by
+species, 10x range, two seeds:
+
+| flower background species | species acc | genus acc | global AUROC | regional AUROC | near AUROC | precision @20% |
+|---|---|---|---|---|---|---|
+| 59 | 0.8450 | 0.9731 | 0.9726 | 0.9794 | 0.8087 | 0.9541 |
+| 147 | 0.8418 | 0.9737 | 0.9723 | 0.9790 | 0.8066 | 0.9531 |
+| 294 | 0.8443 | 0.9744 | 0.9725 | 0.9795 | 0.8048 | 0.9560 |
+| 442 | 0.8461 | 0.9738 | 0.9721 | 0.9791 | 0.8054 | 0.9585 |
+| **589** | 0.8460 | 0.9747 | 0.9719 | 0.9791 | 0.8051 | 0.9563 |
+
+**Flat on every rejection metric across a 10x range** — global OOD AUROC moves
+0.0007 *downward*, near-OOD 0.004 downward, both well inside seed noise. Only
+coverage shows a mild trend (0.706 → 0.722) and the seed spread at frac=0.5 is
+±1pp, so even that is not established.
+
+The reject class saturates well below 59 species. That makes sense for a frozen
+encoder: `__OTHER__` has to locate "not one of the 490 catalogue species" in an
+embedding space the encoder has *already* organised, and a few dozen negatives
+are enough to find that region. More negatives carry no new information.
+
+This retracts the recommendation this section originally made. **The `__OTHER__`
+pool is not a defect and not worth further effort** — which also explains why
+the regional-OOD conclusion above survived despite resting on a wrong premise:
+the pool's composition barely matters, so being wrong about it changed nothing.
+Near-OOD's 0.805 is likewise untouched by pool size, confirming that near-OOD is
+hard because congeners sit close in embedding space, not because the reject
+class is under-trained.
 
 ## Reproduce
 
@@ -468,10 +507,10 @@ pytest -q                      # 63 tests
   the CI narrowed 1.140 → 0.937. It helped, and it is still the weakest link:
   the interval spans zero and only 172 catalogue genera exist, so fetching
   cannot close it. Fixing near-OOD needs a modelling change, not more data.
-- **Rebuild the background pool against the 530-species catalogue.** The reject
-  class trains on 149 leaf / 197 flower species, down from 533 / 589, because
-  the pool predates the catalogue expansion. This is the largest unaddressed
-  defect in the rejection path and it worsens every time the eval set grows.
+- ~~Rebuild the background pool~~ — **retracted.** Rebuilding returns the
+  identical species set, and an ablation shows 59 background species performs as
+  well as 589 on every rejection metric. The reject class saturates far below
+  its current size; this was not a defect.
 - **Modernise the catalogue's names.** 47 of 497 (9.5%) are superseded. The
   recovery fetch works around this per-observation via `name_map`; the
   catalogue itself is still wrong, and 0.34% of OOD rows are catalogue species
