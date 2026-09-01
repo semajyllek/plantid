@@ -136,6 +136,11 @@ granularity and mass-aware centroid placement.
    an M4 Max, not the Neural Engine on a phone. Same order, different number.
    The palettization here is a faithful simulation, but Core ML's own converter
    should be checked against it rather than trusted to match.
-2. **Verify on the newly added species.** 269 of the 530 have no
-   real-observation evaluation — their figures come from the PlantNet test split
-   alone.
+2. ~~**Verify on the newly added species.**~~ **Done.** 269 of the 530 had no
+   real-observation evaluation; targeted and `taxon_id` fetches closed that to
+   **32 of 497 source species** (`INAT_FINDINGS.md`). The species this surfaced
+   are harder than the ones broad queries had found — species accuracy 0.873 on
+   the original cohort against 0.793 and 0.750 on the two added ones — so the
+   figures above, which predate that correction, are mildly optimistic at
+   species level. Genus accuracy was statistically unchanged across all three
+   cohorts, and genus is what the 0.925 target is set on.
