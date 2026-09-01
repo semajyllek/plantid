@@ -185,3 +185,55 @@ if __name__ == "__main__":
     import sys
 
     main(variants=tuple(sys.argv[1:]) or ("dinov3_s",))
+
+
+def palettize_(model, n_bits=4, min_numel=4096, per_channel=True, seed=0):
+    """Simulate Core ML weight palettization in place, and report the damage.
+
+    Core ML stores `2**n_bits` centroids plus an index per weight, which is how a
+    344 MB fp32 model becomes 43 MB at 4 bits. Two details decide whether that is
+    harmless or catastrophic, and both are easy to get wrong:
+
+    **Granularity.** A single palette for an entire weight tensor is the crude
+    variant and is far more damaging than the per-output-channel grouping Core ML
+    actually offers. `per_channel=True` gives each output channel its own
+    centroids, which is the realistic configuration.
+
+    **Centroid initialisation.** Weight distributions are heavy-tailed, so
+    seeding centroids on a linear range over [min, max] spends most of them in
+    near-empty tails. Quantile initialisation puts them where the mass is.
+
+    Small tensors (norm scales, biases) are left in float, matching the usual
+    Core ML setup — a negligible share of the bytes, a large share of the
+    sensitivity.
+    """
+    import torch
+
+    k = 2 ** n_bits
+    errs, n_quantized, n_left = [], 0, 0
+    for _, p in model.named_parameters():
+        if p.ndim < 2 or p.numel() < min_numel:
+            n_left += 1
+            continue
+        w = p.detach().float()
+        flat = w.reshape(w.shape[0], -1) if per_channel else w.reshape(1, -1)
+        out = torch.empty_like(flat)
+        qs = torch.linspace(0, 1, k, device=w.device)
+        for r in range(flat.shape[0]):
+            row = flat[r]
+            centroids = torch.quantile(row, qs)          # mass-aware init
+            centroids = torch.unique(centroids)
+            for _ in range(8):                            # Lloyd's, stable in 1-D
+                bounds = (centroids[1:] + centroids[:-1]) / 2
+                idx = torch.bucketize(row, bounds)
+                sums = torch.zeros_like(centroids).scatter_add_(0, idx, row)
+                cnts = torch.zeros_like(centroids).scatter_add_(0, idx, torch.ones_like(row))
+                centroids = torch.where(cnts > 0, sums / cnts.clamp_min(1), centroids)
+            out[r] = centroids[torch.bucketize(row, (centroids[1:] + centroids[:-1]) / 2)]
+        errs.append(((out - flat).norm() / flat.norm().clamp_min(1e-12)).item())
+        p.data.copy_(out.view_as(p).to(p.dtype))
+        n_quantized += 1
+    return {"n_bits": n_bits, "per_channel": per_channel,
+            "tensors_quantized": n_quantized, "tensors_left_alone": n_left,
+            "mean_relative_error": float(np.mean(errs)) if errs else 0.0,
+            "max_relative_error": float(np.max(errs)) if errs else 0.0}

@@ -79,12 +79,63 @@ were. The background pool is now embedded per encoder.
 - **MobileCLIP2-S2 (17.9 MB) is the fallback** if 43 MB proves too large in
   practice, and is untested — worth measuring only if the size budget tightens.
 
+## What 4-bit palettization costs: 1.1pp of genus accuracy
+
+The 43 MB figure assumes 4-bit weights, and ViTs can be sensitive to aggressive
+quantization, so this needed measuring rather than assuming.
+
+Simulated in PyTorch as Core ML does it — `2**n_bits` k-means centroids per
+weight tensor, per output channel, with norm scales and biases left in float
+(`pretrained.palettize_`). Catalogue and background were then re-embedded through
+the quantized model and the head refitted, which is the deployment case: if the
+device runs quantized weights, the head is trained on quantized embeddings too.
+
+| | species | genus |
+|---|---|---|
+| BioCLIP v1, fp32 | 0.722 | 0.925 |
+| **BioCLIP v1, 4-bit** | **0.709** | **0.914** ✅ |
+| cost | −1.3pp | −1.1pp |
+
+**43 MB, ~22 ms, genus 0.914 — the target still holds.** Quantization is not the
+obstacle.
+
+### Embedding drift badly overstates the damage
+
+The intermediate diagnostics looked alarming and would have been the wrong thing
+to act on:
+
+| bits | weight error | cosine to fp32 | nearest-neighbour preserved |
+|---|---|---|---|
+| 8 | 0.016 | 0.998 | 91.8% |
+| 6 | 0.044 | 0.986 | 86.2% |
+| **4** | 0.113 | **0.898** | **62.0%** |
+
+At 4 bits only 62% of nearest-neighbour relations survive and embeddings move to
+cosine 0.898 — yet accuracy falls barely a point. **A retrained head absorbs a
+systematic shift almost entirely.** Drift metrics measure whether the geometry
+moved, not whether it stopped being separable, and only the second matters here.
+
+### The implementation nearly produced the opposite conclusion
+
+The first version used one shared palette per whole tensor, with centroids
+initialised on a linear range from min to max. Weight distributions are
+heavy-tailed, so that spends most of the 16 centroids in near-empty tails:
+
+| 4-bit variant | cosine to fp32 | NN preserved |
+|---|---|---|
+| linear init, per-tensor (first attempt) | **0.214** | 0.8% |
+| quantile init, per-channel (realistic) | 0.898 | 62.0% |
+
+That would have been reported as "4-bit destroys the model" — a conclusion about
+a crude implementation, not about quantization. Both fixes matter: per-channel
+granularity and mass-aware centroid placement.
+
 ## Still to do for a shippable model
 
 1. **Core ML export and real-device benchmarking.** The 21.8 ms figure is MPS on
    an M4 Max, not the Neural Engine on a phone. Same order, different number.
-2. **Quantization accuracy check.** 43 MB assumes 4-bit palettization; the
-   accuracy cost of that has not been measured, and ViTs can be sensitive.
+   The palettization here is a faithful simulation, but Core ML's own converter
+   should be checked against it rather than trusted to match.
 3. **Verify on the newly added species.** 269 of the 530 have no
    real-observation evaluation — their figures come from the PlantNet test split
    alone.
