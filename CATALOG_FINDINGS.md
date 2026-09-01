@@ -181,6 +181,8 @@ Three label functions over the same data and the same buckets:
 | canonical (bug fix only) | 497 | 0.8428 | 0.9747 | 0.9556 | 0.7210 |
 | **curated** (+ merge, drop) | **490** | 0.8460 | 0.9747 | 0.9563 | 0.7222 |
 
+*(the curated row is what every figure in `REJECTION_FINDINGS.md` now uses)*
+
 Nothing moves. The reason is a limitation of the evaluation set, not a verdict
 on the change: **only 3 of 3,435 in-catalogue observations are of a merged
 species, and none at all are of a hybrid.** The plants curation touches are

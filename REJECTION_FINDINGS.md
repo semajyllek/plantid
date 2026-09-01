@@ -19,8 +19,8 @@ Thresholds are fitted on calibration only; every CI is a cluster bootstrap.
 ## The rule
 
 ```
-decline            if genus confidence   < t_genus      # 0.744 -> now 0.486
-report genus only  if species confidence < t_species    # 0.897 -> now 0.555
+decline            if genus confidence   < t_genus      # 0.744 -> now 0.488
+report genus only  if species confidence < t_species    # 0.897 -> now 0.557
 report species     otherwise
 ```
 
@@ -296,32 +296,33 @@ catalogue name is a superseded synonym (54 more, see
 | regional-OOD | 744 | 2,755 | — |
 | **total** | **5,534** | **20,494** | |
 
-Fitted thresholds: `t_genus = 0.486`, `t_species = 0.555`, at `mu=4` and an
-assumed 20% out-of-catalogue rate.
+Fitted thresholds: `t_genus = 0.488`, `t_species = 0.557`, at `mu=4`, an assumed
+20% out-of-catalogue rate, and the **curated** 490-class label space
+(`CATALOG_FINDINGS.md`).
 
 | | mean utility (test) | 95% CI |
 |---|---|---|
-| baseline, single threshold | −0.586 | [−0.755, −0.428] |
-| **three-way rule** | **+0.595** | [+0.521, +0.657] |
-| **paired gain** | **+1.181** | **[+1.047, +1.330]** ✓ |
+| baseline, single threshold | −0.604 | [−0.778, −0.444] |
+| **three-way rule** | **+0.589** | [+0.516, +0.651] |
+| **paired gain** | **+1.193** | **[+1.059, +1.341]** ✓ |
 
 | bucket | n | species | genus | decline | answered wrong |
 |---|---|---|---|---|---|
-| in-catalogue | 1,734 | 0.521 | 0.349 | 0.130 | 0.018 |
-| near-OOD | 299 | 0.197 | 0.187 | 0.615 | **0.221** |
-| global-OOD | 364 | 0.019 | 0.011 | 0.970 | 0.030 |
-| regional-OOD | 373 | 0.013 | 0.005 | 0.981 | 0.019 |
+| in-catalogue | 1,736 | 0.521 | 0.348 | 0.131 | 0.018 |
+| near-OOD | 299 | 0.201 | 0.181 | 0.619 | **0.224** |
+| global-OOD | 364 | 0.019 | 0.014 | 0.967 | 0.033 |
+| regional-OOD | 373 | 0.013 | 0.008 | 0.979 | 0.021 |
 
 | assumed OOD rate | global precision | coverage | regional precision | coverage |
 |---|---|---|---|---|
-| 60% | 0.858 | 0.434 | 0.867 | 0.430 |
-| 40% | 0.919 | 0.580 | 0.924 | 0.576 |
-| **20%** | **0.955** | **0.725** | **0.957** | **0.723** |
-| 10% | 0.968 | 0.798 | 0.969 | 0.797 |
+| 60% | 0.853 | 0.434 | 0.863 | 0.429 |
+| 40% | 0.916 | 0.579 | 0.921 | 0.576 |
+| **20%** | **0.954** | **0.724** | **0.956** | **0.722** |
+| 10% | 0.968 | 0.796 | 0.969 | 0.795 |
 
 **Every headline number here is lower than the last two rounds, and that is the
-point.** Precision at 20% has moved 0.963 → 0.962 → 0.957 and coverage 0.762 →
-0.744 → 0.723 across three successive expansions of the evaluation set. Nothing
+point.** Precision at 20% has moved 0.963 → 0.962 → 0.956 and coverage 0.762 →
+0.744 → 0.722 across three successive expansions of the evaluation set. Nothing
 about the model changed. What changed is that the set stopped being drawn from
 the easy end of the catalogue.
 
@@ -332,17 +333,17 @@ Three cohorts, split by how each species entered the evaluation set:
 | cohort | obs | species | species accuracy | genus accuracy |
 |---|---|---|---|---|
 | **broad** — surfaced under untargeted queries | 2,371 | 250 | 0.873 [0.841, 0.901] | 0.978 |
-| **targeted** — appeared only when asked for | 913 | 161 | 0.786 [0.733, 0.836] | 0.966 |
-| **recovered** — needed a `taxon_id`, name was stale | 151 | 54 | 0.748 [0.651, 0.840] | 0.967 |
-| combined | 3,435 | 465 | 0.844 [0.818, 0.868] | 0.974 |
+| **targeted** — appeared only when asked for | 913 | 161 | 0.793 [0.740, 0.842] | 0.966 |
+| **recovered** — needed a `taxon_id`, name was stale | 148 | 53 | 0.750 [0.643, 0.842] | 0.966 |
+| combined | 3,435 | 465 | 0.846 [0.821, 0.870] | 0.975 |
 
 Two-sample cluster bootstrap on the gaps:
 
 | | species | genus |
 |---|---|---|
-| broad − targeted | **+0.086 [+0.030, +0.145]** ✓ | +0.012 [−0.008, +0.033] |
-| broad − recovered | **+0.123 [+0.027, +0.223]** ✓ | +0.011 [−0.018, +0.043] |
-| recovered − targeted | −0.040 [−0.147, +0.065] | +0.001 [−0.035, +0.033] |
+| broad − targeted | **+0.079 [+0.023, +0.138]** ✓ | +0.013 [−0.007, +0.034] |
+| broad − recovered | **+0.123 [+0.023, +0.227]** ✓ | +0.012 [−0.016, +0.046] |
+| recovered − targeted | −0.043 [−0.155, +0.061] | +0.000 [−0.035, +0.033] |
 
 `broad` and `targeted` differ by how often the plant is photographed — that is
 the sampling-bias correction, and it is the explanation for that pair. It is
@@ -384,17 +385,17 @@ miss. A species in a crowded genus is hard to name (0.82) and almost impossible
 to misplace (0.992).
 **Species and genus difficulty are anti-correlated**, which is precisely the
 structure the genus fallback monetises, and it is why genus accuracy has stayed
-at 0.97 through every expansion while species accuracy fell 0.874 → 0.844.
+at 0.97 through every expansion while species accuracy fell 0.874 → 0.846.
 
 The rule responds to this without being retuned. On the recovered cohort it
-answers **genus 50.7% of the time against species 36.2%**, inverting its usual
+answers **genus 52.2% of the time against species 34.8%**, inverting its usual
 split:
 
 | cohort | n (test) | species | genus | decline |
 |---|---|---|---|---|
-| broad | 1,164 | 0.543 | 0.343 | 0.114 |
-| targeted | 501 | 0.493 | 0.341 | 0.166 |
-| recovered | 69 | **0.362** | **0.507** | 0.130 |
+| broad | 1,164 | 0.540 | 0.345 | 0.116 |
+| targeted | 503 | 0.501 | 0.332 | 0.167 |
+| recovered | 69 | **0.348** | **0.522** | 0.130 |
 
 ### Near-OOD doubled: it helped, and it is still the weak link
 
@@ -407,10 +408,10 @@ bootstrap:
 | | test n | test genera | utility | 95% CI | width |
 |---|---|---|---|---|---|
 | before | 144 | 32 | −0.448 | [−1.029, +0.111] | 1.140 |
-| **after** | 299 | 60 | **−0.186** | [−0.685, +0.252] | **0.937** |
+| **after** | 299 | 60 | **−0.199** | [−0.707, +0.235] | **0.942** |
 
-**Doubling the genera worked in both directions** — utility improved by +0.26
-and the interval narrowed 18%. It is still ~0.94 wide and still spans zero, so
+**Doubling the genera worked in both directions** — utility improved by +0.25
+and the interval narrowed 17%. It is still ~0.94 wide and still spans zero, so
 the bucket remains the loosest thing in this document, but the earlier reading
 that growth "did not help" was wrong.
 
@@ -418,7 +419,7 @@ The uncomfortable part is the ceiling. Near-OOD genera are drawn from the
 catalogue's own genera, of which there are only **172, and 120 are already
 covered**. Fetching harder buys at most another 1.4x, well short of what would
 tighten this interval to the width of the other buckets'. Near-OOD answers wrong
-22.1% of the time — the worst rate in the table by an order of magnitude — and
+22.4% of the time — the worst rate in the table by an order of magnitude — and
 carries 32% of the OOD mass in every precision figure above via
 `OOD_MIX_REGIONAL`. **This bucket, not the in-catalogue one, is now the limiting
 factor on what can be claimed, and more data will not fix it.**
@@ -482,6 +483,13 @@ encoder: `__OTHER__` has to locate "not one of the 490 catalogue species" in an
 embedding space the encoder has *already* organised, and a few dozen negatives
 are enough to find that region. More negatives carry no new information.
 
+**Scope this to the frozen backbone.** The result depends on the negatives only
+having to *locate* a region rather than *shape* the representation. Under any
+fine-tuning — LoRA, attentive probing, the fallback in ROADMAP's risks — the
+background pool would influence the embedding itself and this curve could look
+entirely different. It holds for the architecture Phase 5 settled on, and should
+not be carried across to another.
+
 This retracts the recommendation this section originally made. **The `__OTHER__`
 pool is not a defect and not worth further effort** — which also explains why
 the regional-OOD conclusion above survived despite resting on a wrong premise:
@@ -520,10 +528,8 @@ pytest -q                      # 63 tests
   species, and the *Ophrys* microspecies are merged away rather than left
   unevaluated (`CATALOG_FINDINGS.md`). What remains is mostly cultivated-only
   plants iNat grades "casual".
-- **Re-run the headline on the curated label space.** Curation moves the class
-  count 497 → 490 and species accuracy by +0.002 — but every number in this
-  section was computed under the old truncation, which conflated three
-  pelargoniums into one class and so was very slightly optimistic.
+- ~~Re-run the headline on the curated label space~~ — done; every figure in
+  this document is now on the curated 490-class space.
 - **Test the conformal genus-containment rule** against the fixed `t_species`.
 - ~~`distant_ood` is easier than deployment OOD~~ — **tested and resolved**: a
   region-restricted bucket declines at 98.7%, versus 98.1% global. The concern
