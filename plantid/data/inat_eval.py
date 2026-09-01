@@ -89,7 +89,7 @@ def _rows(results, bucket, catalog_species, catalog_genera, min_photos=MIN_PHOTO
 
 
 def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MIN_PHOTOS,
-          per_species=3, per_genus=4, buckets=None):
+          per_species=3, per_genus=4, buckets=None, query_species=None):
     """Collect observations per bucket. `min_photos` filters at fetch time, so
     raising it means querying more broadly rather than discarding later.
 
@@ -100,8 +100,11 @@ def fetch(catalog_species, catalog_genera, per_bucket=150, seed=0, min_photos=MI
     have = lambda b: len([r for r in rows if r["bucket"] == b])  # noqa: E731
     want = (lambda b: buckets is None or b in buckets)
 
-    # in-catalog: query species by species
-    for name in pd.Series(sorted(catalog_species)).sample(len(catalog_species), random_state=seed):
+    # in-catalog: query species by species. `query_species` narrows which ones are
+    # asked for without changing what counts as in-catalogue, so an existing
+    # evaluation set can be topped up for species it does not yet cover.
+    to_query = sorted(query_species) if query_species is not None else sorted(catalog_species)
+    for name in pd.Series(to_query).sample(len(to_query), random_state=seed):
         if not want("in_catalog") or have("in_catalog") >= per_bucket:
             break
         j = _get({"taxon_name": name, "quality_grade": "research", "photos": "true",
@@ -177,6 +180,11 @@ def main():
     ap.add_argument("--min-photos", type=int, default=MIN_PHOTOS)
     ap.add_argument("--per-species", type=int, default=3)
     ap.add_argument("--per-genus", type=int, default=4)
+    ap.add_argument("--append", action="store_true",
+                    help="add to the existing manifest instead of replacing the fetched buckets")
+    ap.add_argument("--species-file", default=None,
+                    help="newline-separated binomials to query for in_catalog; "
+                         "does not change what counts as in-catalogue")
     ap.add_argument("--buckets", default=None,
                     help="comma-separated subset to fetch; existing rows for other buckets are kept")
     ap.add_argument("--no-download", action="store_true")
@@ -188,8 +196,13 @@ def main():
     print(f"catalog: {len(species)} species, {len(genera)} genera")
 
     wanted = set(args.buckets.split(",")) if args.buckets else None
+    qs = None
+    if args.species_file:
+        qs = [ln.strip() for ln in open(args.species_file) if ln.strip()]
+        print(f"querying {len(qs)} specific species for in_catalog")
     df = fetch(species, genera, per_bucket=args.per_bucket, min_photos=args.min_photos,
-               per_species=args.per_species, per_genus=args.per_genus, buckets=wanted)
+               per_species=args.per_species, per_genus=args.per_genus, buckets=wanted,
+               query_species=qs)
     print(df.groupby("bucket").size().to_string())
 
     if not args.no_download:
@@ -198,13 +211,20 @@ def main():
         print(df.groupby("bucket").size().to_string())
 
     path = DATA_PROCESSED / MANIFEST
-    if wanted and path.exists():
-        # keep buckets we did not refetch, so their frozen calib/test splits and
-        # already-embedded photos stay exactly as they were
+    if (wanted or args.append) and path.exists():
         existing = pd.read_parquet(path)
-        kept = existing[~existing["bucket"].isin(wanted)]
+        if args.append:
+            # topping up: every existing row survives, new observations are added.
+            # Replacing a bucket instead would silently discard the observations
+            # already fetched for it.
+            kept = existing
+            print(f"append: keeping all {len(kept)} existing rows")
+        else:
+            # keep buckets we did not refetch, so their frozen calib/test splits
+            # and already-embedded photos stay exactly as they were
+            kept = existing[~existing["bucket"].isin(wanted)]
+            print(f"merged: kept {len(kept)} rows from buckets {sorted(set(kept.bucket))}")
         df = pd.concat([kept, df], ignore_index=True).drop_duplicates(subset=["obs_id"])
-        print(f"merged: kept {len(kept)} rows from buckets {sorted(set(kept.bucket))}")
 
     df.to_parquet(path, index=False)
     print(f"wrote {path} ({len(df)} observations)")
