@@ -72,7 +72,7 @@ were. The background pool is now embedded per encoder.
 
 ## What this means for Phase 5
 
-- **Ship BioCLIP v1.** 43 MB at int4, ~22 ms, genus 0.925.
+- **Ship BioCLIP v1 at 4-bit.** 43 MB, ~22 ms, genus 0.914 after quantization.
 - **Distillation is cancelled.** It was the plan of record; it would have been
   weeks of work to recover part of a gap that an off-the-shelf model already
   closes.
@@ -136,6 +136,6 @@ granularity and mass-aware centroid placement.
    an M4 Max, not the Neural Engine on a phone. Same order, different number.
    The palettization here is a faithful simulation, but Core ML's own converter
    should be checked against it rather than trusted to match.
-3. **Verify on the newly added species.** 269 of the 530 have no
+2. **Verify on the newly added species.** 269 of the 530 have no
    real-observation evaluation — their figures come from the PlantNet test split
    alone.
