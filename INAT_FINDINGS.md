@@ -212,6 +212,69 @@ argmax — hence the `router-conf ≥0.6` row, which tells the same story on a
 cleaner but smaller sample (n=280). The ≥4-photo row is n=199, so its −0.002
 distant-OOD gain is well within noise; the point is that it is not *positive*.
 
+## Round 4: closing the hole in species coverage
+
+247 of the catalogue's 497 species had **no real observation at all** — half the
+catalogue was being scored only on the PlantNet test split, the corpus its own
+head was fitted on. A targeted fetch (`--species-file`, querying those species
+by name rather than waiting for them to appear) returned 931 observations
+covering **161** of the 247. In-catalogue coverage went 250 → 411 species,
+2,365 → 3,284 observations.
+
+What that cost is recorded in [`REJECTION_FINDINGS.md`](REJECTION_FINDINGS.md):
+species accuracy on the new cohort is 0.791 against 0.872 on the old, a gap of
++0.081 with CI [+0.025, +0.141], while genus accuracy is statistically flat.
+**The caveat this document has carried since round 2 — that in-catalogue
+observations "skew toward common, heavily-photographed, easy species" — is now
+partly measured rather than only asserted, and it was real.**
+
+### The other 86 are mostly a naming problem, not a data problem
+
+The 86 species that returned nothing were resolved against iNat's active
+taxonomy. Fuzzy search is not safe here — `q=Anemone apennina` returns
+*Anemonoides blanda*, a different plant — so matches were accepted only on an
+exact `matched_term` (iNat lists our name as a synonym) or a surviving specific
+epithet across a genus transfer:
+
+| outcome | n | |
+|---|---|---|
+| **synonym, and the modern taxon has usable observations** | **57** | recoverable |
+| resolved but genuinely unobservable | 7 | *Peperomia*, *Sedum* houseplants |
+| unresolved | 22 | |
+
+The catalogue is carrying **PlantNet's pre-split names**. Every one of the 18
+*Anemone* entries has moved: `Anemone nemorosa` → *Anemonoides nemorosa*
+(84,623 research-grade observations), `Anemone pulsatilla` → *Pulsatilla
+vulgaris*, `Anemone hepatica` → *Hepatica nobilis*. *Sedum* has split into
+*Phedimus* and *Petrosedum*, `Perovskia atriplicifolia` → *Salvia yangii*,
+`Hebe` → *Veronica*, `Schefflera` → *Heptapleurum*, `Duchesnea indica` →
+*Potentilla indica*. **A `taxon_name` query cannot match any of them**, which is
+why they looked like species iNaturalist has no data on.
+
+The three groups that are *not* recoverable are each recoverable-in-principle
+for a different reason, and none is about the plant being rare:
+
+- **7 cultivated-only** — *Peperomia albovittata*, *Sedum burrito* and similar
+  have 0–3 research-grade observations because iNat grades cultivated plants
+  "casual". They are common; they are just not *wild*. No fetch fixes this, and
+  it is a genuine gap for a catalogue built from a horticulture-heavy corpus.
+- **~9 are not species** — `Anemone x`, `Fragaria ×`, `Freesia x`,
+  `Hypericum x`, `Lupinus x`, `Pelargonium spp.`, `Pelargonium x`,
+  `Pelargonium ×`, `Tradescantia x` are PlantNet hybrid and genus-level
+  placeholders sitting in a species catalogue. They should not be labels.
+- **6 *Ophrys* microspecies** — *incubacea*, *lupercalis*, *occidentalis*,
+  *passionis*, *virescens*, *arachnitiformis* are contested segregates of the
+  *O. sphegodes* complex that iNat does not recognise as distinct taxa. Not a
+  lookup failure: a taxonomic disagreement the catalogue inherited.
+
+So the honest accounting of the original 247: **161 closed, 57 cheaply
+closable, ~29 blocked for reasons that are properties of the catalogue rather
+than of iNaturalist.** Roughly 88% of the hole is reachable.
+
+The same naming gap also leaks into bucketing, because bucket membership is a
+binomial string match — measured at 0.34% of OOD rows and quantified in
+`REJECTION_FINDINGS.md`. It is small now and grows with the catalogue.
+
 ## Follow-ups
 
 - ~~Re-run with ≥3 photos and ≥2 confidently-distinct organs~~ — done, round 2.

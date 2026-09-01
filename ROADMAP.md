@@ -84,8 +84,11 @@ the "don't waste compute" discipline made structural.
 casual photo, and chasing it would produce a worse product. The right target:
 
 > **Precision at coverage, with an abstain option — and a genus level between
-> them.** Delivered: at an assumed 20% out-of-catalogue rate, **99.0% precision
-> on 58% of captures** (`REJECTION_FINDINGS.md`).
+> them.** Delivered: at an assumed 20% out-of-catalogue rate, **96.2% precision
+> on 74% of captures**, on 497 species and 5,055 real observations
+> (`REJECTION_FINDINGS.md`). The earlier "99.0% on 58%" was measured at `mu=2`
+> on a 261-species catalogue; raising `mu` to 4 and anchoring thresholds to a
+> stated prevalence traded precision for coverage deliberately.
 
 The metric is now three-way rather than binary: the app answers at **species**,
 answers at **genus**, or **declines**. Genus is a first-class answer, not a
