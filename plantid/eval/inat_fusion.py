@@ -26,6 +26,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
 from plantid.config import DATA_PROCESSED, ORGANS
+from plantid.data.curation import curated_name
 from plantid.features.embed_background import catalog_species, eval_species_names, load_background
 from plantid.features.embed_catalog import load_catalog
 
@@ -36,7 +37,8 @@ def _l2(x):
     return x / np.clip(np.linalg.norm(x, axis=1, keepdims=True), 1e-9, None)
 
 
-def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True):
+def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True,
+                name_fn=curated_name):
     """Per-organ species heads with a class-weighted reject class, plus the
     projection from each head's classes into a shared class space.
 
@@ -48,14 +50,17 @@ def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True):
     cs = catalog_species(cache_dir)
     ev = eval_species_names(cache_dir) if exclude_eval_species else None
     cat = pd.read_parquet(cache_dir / "catalog_index.parquet")
-    classes = sorted({" ".join(n.split()[:2]) for n in cat["species_name"].unique()}) + [OTHER]
+    # `name_fn` decides what counts as one nameable plant; it returns None for
+    # labels curation drops, whose images leave the training set entirely.
+    classes = sorted({c for c in map(name_fn, cat["species_name"].unique()) if c}) + [OTHER]
     index = {c: i for i, c in enumerate(classes)}
 
     heads, proj = {}, {}
     for organ in ORGANS:
         d = load_catalog(organ, cache_dir=cache_dir)
         E, tr = _l2(d["descriptor"]), d["split"] == "train"
-        names = np.array([" ".join(n.split()[:2]) for n in d["species_name"]])
+        names = np.array([name_fn(n) or "" for n in d["species_name"]])
+        tr = tr & (names != "")
         bg = _l2(
             load_background(organ, exclude_species=cs, exclude_names=ev, cache_dir=cache_dir)["descriptor"]
         )

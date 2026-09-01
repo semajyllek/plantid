@@ -113,11 +113,12 @@ def catalog_logits(organ, heads, cache_dir=None, split="val"):
     fitting T does not spend the iNaturalist calibration split.
     """
     from plantid.config import DATA_PROCESSED
+    from plantid.data.curation import curated_name
     from plantid.eval.inat_fusion import _l2
     from plantid.features.embed_catalog import load_catalog
 
     d = load_catalog(organ, cache_dir=cache_dir or DATA_PROCESSED)
     m = d["split"] == split
     E = _l2(d["descriptor"])[m]
-    names = np.array([" ".join(str(n).split()[:2]) for n in d["species_name"]])[m]
+    names = np.array([curated_name(n) or "" for n in d["species_name"]])[m]
     return heads[organ].decision_function(E), names

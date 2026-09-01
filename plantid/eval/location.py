@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from plantid.config import DATA_PROCESSED
+from plantid.data.curation import canonical_name, curated_name
 from plantid.data.species_ranges import eval_obs_ids, load_prior
 from plantid.eval.rejection import (
     DECLINE,
@@ -55,7 +56,7 @@ def attach_locations(df, cache_dir=DATA_PROCESSED):
     """
     man = pd.read_parquet(cache_dir / "inat_observations.parquet")
     man = man[man["local_paths"].map(len) >= 2].reset_index(drop=True)
-    man["binom"] = man["species_name"].map(lambda n: " ".join(str(n).split()[:2]))
+    man["binom"] = man["species_name"].map(lambda n: curated_name(n) or canonical_name(n))
     keep = ["obs_id", "lat", "lon", "obscured"]
     return df.reset_index(drop=True).join(man[keep])
 

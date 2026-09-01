@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from plantid.config import DATA_PROCESSED
+from plantid.data.curation import canonical_name, curated_name
 from plantid.eval.combiners import trimmed
 from plantid.eval.inat_fusion import OTHER, _l2, build_heads, build_router, photo_posteriors
 
@@ -210,14 +211,14 @@ def cluster_bootstrap(values, clusters, n=2000, seed=0):
 
 
 def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combiner=trimmed,
-                       temperatures=None, keep_posterior=False):
+                       temperatures=None, keep_posterior=False, name_fn=curated_name):
     """One row per observation: truth, bucket, and the fused posterior scores.
 
     `keep_posterior` additionally returns the full fused posterior per
     observation, which re-ranking experiments need and the decision path does
     not.
     """
-    heads, proj, classes = build_heads(cache_dir=cache_dir)
+    heads, proj, classes = build_heads(cache_dir=cache_dir, name_fn=name_fn)
     router, router_acc = build_router(cache_dir=cache_dir)
     oi = int(np.flatnonzero(classes == OTHER)[0])
     mask = np.ones(len(classes), bool)
@@ -240,7 +241,9 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
         sc, gc, omo = scores(fused, mask, oi, gmat)
         pred = classes[mask][fused[:, mask].argmax(1)][0]
         gpred = ug[(fused[:, mask] @ gmat.T).argmax(1)][0]
-        binom = " ".join(str(r.species_name).split()[:2])
+        # same label function as the head, or the truth string cannot match a
+        # predicted class -- for hybrids and merged species it would never match
+        binom = name_fn(r.species_name) or canonical_name(r.species_name)
         rows.append({
             "bucket": r.bucket, "species": binom, "genus": r.genus,
             "pred_species": pred, "pred_genus": gpred,

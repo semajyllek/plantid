@@ -476,9 +476,15 @@ pytest -q                      # 63 tests
   recovery fetch works around this per-observation via `name_map`; the
   catalogue itself is still wrong, and 0.34% of OOD rows are catalogue species
   in disguise.
-- **32 species remain unevaluated** — 9 hybrid placeholders that are not
-  species, 7 cultivated-only, 6 contested *Ophrys* microspecies, the rest
-  unresolved.
+- **32 species remain unevaluated.** Curation has since resolved part of this:
+  the "hybrid placeholders" were a truncation bug and are now properly named
+  species, and the *Ophrys* microspecies are merged away rather than left
+  unevaluated (`CATALOG_FINDINGS.md`). What remains is mostly cultivated-only
+  plants iNat grades "casual".
+- **Re-run the headline on the curated label space.** Curation moves the class
+  count 497 → 490 and species accuracy by +0.002 — but every number in this
+  section was computed under the old truncation, which conflated three
+  pelargoniums into one class and so was very slightly optimistic.
 - **Test the conformal genus-containment rule** against the fixed `t_species`.
 - ~~`distant_ood` is easier than deployment OOD~~ — **tested and resolved**: a
   region-restricted bucket declines at 98.7%, versus 98.1% global. The concern

@@ -26,6 +26,7 @@ import pandas as pd
 import requests
 
 from plantid.config import DATA_PROCESSED
+from plantid.data.curation import curated_name
 from plantid.data.inat_eval import API, HEADERS, SLEEP
 
 RANGES = "species_ranges.parquet"
@@ -46,8 +47,9 @@ def fetch_species_points(binomials, per_species=200, sleep=SLEEP):
         for o in results:
             loc = o.get("location")
             taxon = (o.get("taxon") or {}).get("name", "")
-            # the API matches loosely; keep only exact binomial hits
-            if not loc or " ".join(taxon.split()[:2]) != name:
+            # the API matches loosely; keep only exact hits under the same
+            # label function the catalogue uses, or hybrids never match
+            if not loc or curated_name(taxon) != name:
                 continue
             lat, lon = (float(v) for v in loc.split(","))
             # obs_id is what lets the evaluation observations be excluded: the
@@ -170,7 +172,7 @@ def main():
     args = ap.parse_args()
 
     cat = pd.read_parquet(DATA_PROCESSED / "catalog_index.parquet")
-    names = sorted({" ".join(str(n).split()[:2]) for n in cat["species_name"].unique()})
+    names = sorted({c for c in map(curated_name, cat["species_name"].unique()) if c})
     print(f"fetching up to {args.per_species} located observations for each of {len(names)} species")
 
     pts = fetch_species_points(names, per_species=args.per_species)

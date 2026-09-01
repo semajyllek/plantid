@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from plantid.config import DATA_PROCESSED, ORGANS
+from plantid.data.curation import canonical_name
 
 BACKGROUND_MANIFEST = "plantnet_background.parquet"
 
@@ -22,8 +23,15 @@ def cache_path(organ: str, variant: str = "bioclip2", cache_dir=DATA_PROCESSED):
 
 def binomial(name: str) -> str:
     """'Sedum acre L.' -> 'Sedum acre'. iNaturalist carries no species_id, so
-    name is the only key that joins the eval set to the PlantNet pools."""
-    return " ".join(str(name).split()[:2])
+    name is the only key that joins the eval set to the PlantNet pools.
+
+    Delegates to `curation.canonical_name`, which additionally keeps the hybrid
+    marker: plain truncation turned `Fragaria × ananassa` into `Fragaria ×` and
+    merged three different pelargoniums into one key. This is the *join* key, so
+    it deliberately does not apply `curation.MERGE` — that belongs where class
+    labels are formed.
+    """
+    return canonical_name(name)
 
 
 def load_background(
