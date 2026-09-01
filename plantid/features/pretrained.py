@@ -30,6 +30,14 @@ ENCODERS = {
     "dinov3_b": {"loader": "timm", "spec": "vit_base_patch16_dinov3.lvd1689m"},
     "mobileclip2_s0": {"loader": "open_clip", "spec": "hf-hub:timm/MobileCLIP2-S0-OpenCLIP"},
     "bioclip2": {"loader": "open_clip", "spec": "hf-hub:imageomics/bioclip-2"},
+    # Deployment candidates. BioCLIP-2's image tower is 304M parameters (ViT-L),
+    # too large to ship; these are the biology-trained alternatives at a quarter
+    # the size or less. DINOv3-B shows that general-purpose scale does not
+    # substitute for biological pretraining, so the search is for small models
+    # trained on the right data rather than compressed large ones.
+    "bioclip1": {"loader": "open_clip", "spec": "hf-hub:imageomics/bioclip"},
+    "bioclip_inat": {"loader": "open_clip", "spec": "hf-hub:imageomics/bioclip-vit-b-16-inat-only"},
+    "mobileclip2_s2": {"loader": "open_clip", "spec": "hf-hub:timm/MobileCLIP2-S2-OpenCLIP"},
     # In-domain: DINOv2 ViT-B/14 (reg4) fine-tuned on PlantCLEF 2024 (7,806
     # species). Published as a bare safetensors checkpoint with no timm config,
     # so the architecture is constructed explicitly and the weights loaded in.

@@ -188,13 +188,24 @@ CUDA-only-code failures these HF models hit on MPS.)*
   and gives a metric space that supports open-set rejection), k-NN.
 - Deliverable: accuracy-vs-species-count curve + chosen head.
 
-## Phase 5 — On-device deployment
+## Phase 5 — On-device deployment — **encoder chosen, distillation cancelled**
 
-- If the Phase 3 winner is too large to ship (a ViT-L is), swap to the best
-  deployable encoder — **MobileCLIP-S0/S1** or **FastViT** (Apple's own
-  ANE-targeted architecture) — and, if the accuracy gap justifies it, distill
-  the big encoder's embeddings into it. Distillation on frozen targets is far
-  cheaper than training from scratch and is feasible on M-series.
+> See [`ONDEVICE_FINDINGS.md`](ONDEVICE_FINDINGS.md). **BioCLIP v1 (ViT-B, 86M)
+> fits the budget at 43 MB / ~22 ms and clears the genus target at 0.925**, so
+> the distillation project below is unnecessary.
+
+BioCLIP-2's image tower turned out to be 304M parameters — a ViT-L, 152 MB even
+at 4-bit — so it genuinely cannot ship. But compression was the wrong fix: the
+bake-off showed DINOv3-B at 86M reaching only 0.724 against BioCLIP-2's 0.863,
+so the advantage is *biological pretraining, not scale*. The answer was a small
+model trained on the right data, and BioCLIP v1 is exactly that: 3.5x smaller,
+4.5x faster, and 3.2pp of genus accuracy behind.
+
+Remaining: Core ML export, real-device Neural Engine benchmarking, and measuring
+what 4-bit palettization costs in accuracy.
+
+- ~~Swap to the best deployable encoder and distill the big encoder into it~~ —
+  unnecessary; an off-the-shelf biology-trained ViT-B already clears the bar.
 - Core ML export → palettization / int8 quantization → **Neural Engine**
   benchmark on a real device.
 - Budget: **<50 MB, <100 ms/image on ANE.** The head is negligible
