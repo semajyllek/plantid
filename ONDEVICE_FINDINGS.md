@@ -79,6 +79,12 @@ were. The background pool is now embedded per encoder.
 - **MobileCLIP2-S2 (17.9 MB) is the fallback** if 43 MB proves too large in
   practice, and is untested — worth measuring only if the size budget tightens.
 
+> **This section is too optimistic. See
+> [The deployable encoder costs 19pp of coverage](#the-deployable-encoder-costs-19pp-of-coverage-not-3pp-of-genus-accuracy)
+> below** — measured on real observations rather than the catalogue's own test
+> split, the gap is roughly twice as large on accuracy and much larger on
+> rejection, and it reopens the distillation question.
+
 ## What 4-bit palettization costs: 1.1pp of genus accuracy
 
 The 43 MB figure assumes 4-bit weights, and ViTs can be sensitive to aggressive
@@ -189,6 +195,62 @@ per-channel lookup table against a single shared one. Worth paying at 19 ms.
 
 Neither is BioCLIP-specific; both will recur for any ViT exported from a recent
 PyTorch.
+
+## The deployable encoder costs 19pp of coverage, not 3pp of genus accuracy
+
+Every figure in `REJECTION_FINDINGS.md` was BioCLIP-**2** — the 304M ViT-L that
+cannot ship. `build_heads` had no `variant` parameter, so the encoder the
+product would actually run had only ever been compared on the catalogue's *own
+test split*: same corpus, no out-of-catalogue plants, no observation grouping.
+`variant` is now threaded through, the evaluation set re-embedded with BioCLIP
+v1, and the whole three-way rule re-run.
+
+| on 5,534 real observations | BioCLIP-2 (cannot ship) | **BioCLIP v1 (ships)** |
+|---|---|---|
+| in-catalogue species accuracy | 0.846 | **0.760** |
+| in-catalogue genus accuracy | 0.975 | **0.931** |
+| global-OOD AUROC (genus conf.) | 0.972 | **0.901** |
+| regional-OOD AUROC | 0.979 | **0.901** |
+| near-OOD AUROC | 0.805 | 0.774 |
+| precision @20% OOD | 0.956 | 0.946 |
+| **coverage @20% OOD** | **0.722** | **0.531** |
+| in-catalogue decline rate | 0.131 | **0.366** |
+| mean utility | +0.589 | +0.472 |
+
+Paired over species clusters: species **−8.6pp, CI [−10.3, −6.9]**; genus
+**−4.4pp, CI [−5.3, −3.5]**. Both intervals exclude zero comfortably.
+
+**The catalogue-split comparison understated this by about half** — it reported
+3.5pp species and 3.2pp genus. Two reasons, and the second matters more:
+
+1. Real observations are harder than the corpus the heads were fitted on, and
+   the weaker encoder loses more from the shift.
+2. **The catalogue split contains no out-of-catalogue plants, so it could not
+   measure rejection at all.** That is where the real damage is: genus-confidence
+   AUROC falls 0.979 → 0.901 on regional OOD. The entire product rests on that
+   score separating catalogue plants from everything else.
+
+**Precision barely moves (0.956 → 0.946) because the rule protects it — by
+declining.** In-catalogue declines nearly triple, 13.1% → 36.6%, and coverage
+falls from 72% of captures to 53%. That is the honest statement of the cost:
+not "3pp of genus accuracy" but **a fifth of the captures the app can answer.**
+
+### This reopens the distillation decision
+
+Distillation was cancelled on the strength of "an off-the-shelf biology-trained
+ViT-B already clears the bar". It clears a *genus accuracy* bar measured
+same-corpus; it does not deliver the same product. The options now have numbers
+attached:
+
+- **Accept 53% coverage.** Still a usable product, and still 94.6% precise.
+- **Raise the size budget.** 50 MB was self-imposed. BioCLIP-2 is ~164 MB at
+  int4 by the measured 0.54 bytes/param — large for an app but not impossible,
+  and it is the only option that keeps 72% coverage.
+- **Distil BioCLIP-2 into a ViT-B.** Now has a real justification: 19pp of
+  coverage, where before it looked like 3pp of an accuracy metric.
+- **Try `bioclip_inat`** (ViT-B trained on iNat only, already in `ENCODERS` and
+  untested here). Cheapest experiment of the four, and the evaluation set is
+  iNaturalist, so it is the most likely to close part of the gap.
 
 ## Still to do for a shippable model
 

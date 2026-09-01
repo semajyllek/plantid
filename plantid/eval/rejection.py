@@ -211,15 +211,16 @@ def cluster_bootstrap(values, clusters, n=2000, seed=0):
 
 
 def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combiner=trimmed,
-                       temperatures=None, keep_posterior=False, name_fn=curated_name):
+                       temperatures=None, keep_posterior=False, name_fn=curated_name,
+                       variant="bioclip2"):
     """One row per observation: truth, bucket, and the fused posterior scores.
 
     `keep_posterior` additionally returns the full fused posterior per
     observation, which re-ranking experiments need and the decision path does
     not.
     """
-    heads, proj, classes = build_heads(cache_dir=cache_dir, name_fn=name_fn)
-    router, router_acc = build_router(cache_dir=cache_dir)
+    heads, proj, classes = build_heads(cache_dir=cache_dir, name_fn=name_fn, variant=variant)
+    router, router_acc = build_router(cache_dir=cache_dir, variant=variant)
     oi = int(np.flatnonzero(classes == OTHER)[0])
     mask = np.ones(len(classes), bool)
     mask[oi] = False
@@ -335,13 +336,18 @@ def baseline_levels(df, p_other_threshold=None, coverage=0.95):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--emb", default=str(DATA_PROCESSED / "inat_bioclip2.npz"))
+    ap.add_argument("--variant", default="bioclip2",
+                    help="encoder whose cached catalogue/background embeddings the heads use")
+    ap.add_argument("--emb", default=None,
+                    help="iNat photo embeddings; defaults to inat_<variant>.npz")
     ap.add_argument("--min-photos", type=int, default=2)
     ap.add_argument("--assumed-ood", type=float, default=0.2,
                     help="assumed share of real queries that are out-of-catalogue")
     args = ap.parse_args()
 
-    df, router_acc = build_observations(args.emb, min_photos=args.min_photos)
+    emb = args.emb or str(DATA_PROCESSED / f"inat_{args.variant}.npz")
+    print(f"encoder: {args.variant}   embeddings: {emb}")
+    df, router_acc = build_observations(emb, min_photos=args.min_photos, variant=args.variant)
     calib, test = df[df.fold == "calib"], df[df.fold == "test"]
     print(f"organ router accuracy {router_acc:.3f}")
     print(f"observations: {len(df)}  (calib {len(calib)} / test {len(test)})")

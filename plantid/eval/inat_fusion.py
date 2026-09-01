@@ -38,7 +38,7 @@ def _l2(x):
 
 
 def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True,
-                name_fn=curated_name):
+                name_fn=curated_name, variant="bioclip2"):
     """Per-organ species heads with a class-weighted reject class, plus the
     projection from each head's classes into a shared class space.
 
@@ -57,12 +57,13 @@ def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True,
 
     heads, proj = {}, {}
     for organ in ORGANS:
-        d = load_catalog(organ, cache_dir=cache_dir)
+        d = load_catalog(organ, variant=variant, cache_dir=cache_dir)
         E, tr = _l2(d["descriptor"]), d["split"] == "train"
         names = np.array([name_fn(n) or "" for n in d["species_name"]])
         tr = tr & (names != "")
         bg = _l2(
-            load_background(organ, exclude_species=cs, exclude_names=ev, cache_dir=cache_dir)["descriptor"]
+            load_background(organ, exclude_species=cs, exclude_names=ev, variant=variant,
+                            cache_dir=cache_dir)["descriptor"]
         )
         heads[organ] = LogisticRegression(max_iter=4000, C=C, class_weight="balanced").fit(
             np.vstack([E[tr], bg]), np.r_[names[tr], np.full(len(bg), OTHER)]
@@ -71,11 +72,11 @@ def build_heads(cache_dir=DATA_PROCESSED, C=10.0, exclude_eval_species=True,
     return heads, proj, np.array(classes)
 
 
-def build_router(cache_dir=DATA_PROCESSED, C=10.0):
+def build_router(cache_dir=DATA_PROCESSED, C=10.0, variant="bioclip2"):
     """3-way leaf/bark/flower classifier, trained on the catalog's organ labels."""
     X, y, S = [], [], []
     for organ in ORGANS:
-        d = load_catalog(organ, cache_dir=cache_dir)
+        d = load_catalog(organ, variant=variant, cache_dir=cache_dir)
         X.append(_l2(d["descriptor"]))
         y += [organ] * len(d["descriptor"])
         S.append(d["split"])

@@ -300,6 +300,12 @@ Fitted thresholds: `t_genus = 0.488`, `t_species = 0.557`, at `mu=4`, an assumed
 20% out-of-catalogue rate, and the **curated** 490-class label space
 (`CATALOG_FINDINGS.md`).
 
+> **These are BioCLIP-2 numbers, and BioCLIP-2 cannot ship** (304M ViT-L).
+> On the deployable BioCLIP v1 the same rule gives precision 0.946 at coverage
+> **0.531** — see
+> [`ONDEVICE_FINDINGS.md`](ONDEVICE_FINDINGS.md#the-deployable-encoder-costs-19pp-of-coverage-not-3pp-of-genus-accuracy).
+> Run `--variant bioclip1` to reproduce.
+
 | | mean utility (test) | 95% CI |
 |---|---|---|
 | baseline, single threshold | −0.604 | [−0.778, −0.444] |
