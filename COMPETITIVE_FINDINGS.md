@@ -12,6 +12,48 @@ catalogue's names are a taxonomic generation behind (`INAT_FINDINGS.md`) and
 string equality would measure nomenclature rather than identification — that
 correction alone moved 22 of Pl@ntNet's answers from wrong to right.
 
+## Three-way, same photograph: what we have ties the best incumbent, and it cannot ship
+
+465 observations, one per in-catalogue species, the same single image to all
+three. Zero errors after retrying iNaturalist's rate limit.
+
+| system | label space | species top-1 | 95% CI | genus top-1 |
+|---|---|---|---|---|
+| **iNaturalist** (vision only) | 108,124 | **0.7871** | [0.748, 0.824] | 0.9140 |
+| **ours — BioCLIP-2** *(cannot ship)* | 490 | **0.7849** | [0.746, 0.822] | **0.9398** |
+| Pl@ntNet | ~50,000 | 0.7398 | [0.701, 0.781] | 0.8817 |
+| ours — distilled student | 490 | 0.6753 | [0.632, 0.716] | 0.8430 |
+| ours — Core ML int4 *(ships)* | 490 | 0.6559 | [0.613, 0.697] | 0.8473 |
+
+Paired over the same observations:
+
+| | Δ | 95% CI | |
+|---|---|---|---|
+| iNaturalist − Pl@ntNet | +0.047 | [+0.002, +0.088] | ✓ iNat is the stronger incumbent |
+| **ours BioCLIP-2 − iNaturalist** | **−0.002** | **[−0.047, +0.043]** | **statistically tied** |
+| ours int4 *(ships)* − iNaturalist | −0.131 | [−0.181, −0.084] | ✓ significant loss |
+
+**The best configuration we have is indistinguishable from iNaturalist's server
+model at species level, and ahead of it at genus (0.940 vs 0.914) — from a label
+space 220x smaller.** It also cannot ship: it is the 304M ViT-L.
+
+**What ships is 13.1pp behind.** So the entire competitive question reduces to
+the encoder gap. Nothing else in the system is the problem — not the decision
+rule, not the catalogue, not the fusion. The gap between 0.785 and 0.656 is the
+whole distance between "competitive with the best free option" and "clearly
+worse than two of them".
+
+### One caveat that runs in our favour
+
+Our evaluation set is **iNaturalist research-grade observations, which is exactly
+what iNaturalist trains its computer vision model on.** Their 0.787 is therefore
+very likely inflated by having seen some of these photographs in training —
+a far more direct contamination than BioCLIP-2's via TreeOfLife. Their published
+vision-only figure is ~75%, and they score 78.7% here.
+
+That makes the tie *understate* our position rather than overstate it: BioCLIP-2
+matches a model that may have trained on the test images.
+
 ## Single photograph, like for like
 
 | system | label space | species top-1 | 95% CI | genus top-1 |

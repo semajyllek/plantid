@@ -67,6 +67,13 @@ INAT_URL = "https://api.inaturalist.org/v1/computervision/score_image"
 CACHE = DATA_PROCESSED / "headtohead"
 HEADERS = {"User-Agent": "plantid-research/0.1 (encoder comparison)"}
 SLEEP = 1.2
+# iNaturalist throttles the computer-vision endpoint harder than their general
+# API: a 1.2s cadence ran clean for 99 requests and then returned 429 for the
+# remaining 366. Back off and retry rather than discarding those observations —
+# dropping them silently would have left a result computed on whichever subset
+# happened to arrive before the limit.
+INAT_SLEEP = 2.5
+INAT_RETRIES = 5
 
 
 def sample_observations(n=200, seed=0, cache_dir=DATA_PROCESSED):
@@ -127,7 +134,7 @@ def _cached(service, obs_id, fn):
     result = fn()
     if "error" not in result:
         path.write_text(json.dumps(result))
-    time.sleep(SLEEP)
+    time.sleep(INAT_SLEEP if service.startswith("inat") else SLEEP)
     return result
 
 
@@ -155,9 +162,14 @@ def query_inat(image_path, token, lat=None, lng=None):
     data = {}
     if lat is not None and lng is not None and lat == lat and lng == lng:
         data = {"lat": str(lat), "lng": str(lng)}
-    with open(image_path, "rb") as fh:
-        r = requests.post(INAT_URL, headers={**HEADERS, "Authorization": token},
-                          files={"image": fh}, data=data, timeout=60)
+    r = None
+    for attempt in range(INAT_RETRIES):
+        with open(image_path, "rb") as fh:
+            r = requests.post(INAT_URL, headers={**HEADERS, "Authorization": token},
+                              files={"image": fh}, data=data, timeout=60)
+        if r.status_code != 429:
+            break
+        time.sleep(INAT_SLEEP * 2 ** (attempt + 1))   # 5s, 10s, 20s, 40s, 80s
     if r.status_code != 200:
         return {"error": r.status_code, "body": r.text[:300]}
     out = []
