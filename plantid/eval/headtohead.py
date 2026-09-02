@@ -143,10 +143,21 @@ def query_plantnet(image_path, api_key):
         for x in r.json().get("results", [])[:10]]}
 
 
-def query_inat(image_path, token):
+def query_inat(image_path, token, lat=None, lng=None):
+    """iNaturalist's *server* model. Seek's on-device model has no API.
+
+    `lat`/`lng` switch on their geomodel, which their own figures put at +12pp of
+    top-1 (75% vision-only -> 87% with it). Sending nothing is the fair
+    comparison against Pl@ntNet and against us, since neither uses location;
+    sending coordinates measures what a geographic prior is worth on *our*
+    images, which is the claim `LOCATION_FINDINGS.md` scopes.
+    """
+    data = {}
+    if lat is not None and lng is not None and lat == lat and lng == lng:
+        data = {"lat": str(lat), "lng": str(lng)}
     with open(image_path, "rb") as fh:
         r = requests.post(INAT_URL, headers={**HEADERS, "Authorization": token},
-                          files={"image": fh}, timeout=60)
+                          files={"image": fh}, data=data, timeout=60)
     if r.status_code != 200:
         return {"error": r.status_code, "body": r.text[:300]}
     out = []
@@ -179,7 +190,7 @@ def score(rows, aliases=None):
     """Per-service species and genus top-1, and top-5 species containment."""
     aliases = aliases if aliases is not None else {}
     out = []
-    for service in ("plantnet", "inat"):
+    for service in ("plantnet", "inat", "inat_geo"):
         got = [r for r in rows if r.get(f"{service}_top1") is not None]
         if not got:
             continue
@@ -208,7 +219,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--plantnet-key", default=os.environ.get("PLANTNET_API_KEY"))
-    ap.add_argument("--inat-token", default=os.environ.get("INAT_API_TOKEN"))
+    ap.add_argument("--inat-token", default=os.environ.get("INAT_API_TOKEN"),
+                    help="JWT from https://www.inaturalist.org/users/api_token (~24h)")
+    ap.add_argument("--inat-geo", action="store_true",
+                    help="also send coordinates, enabling their geomodel")
     ap.add_argument("--out", default=str(DATA_PROCESSED / "headtohead.parquet"))
     args = ap.parse_args()
 
@@ -223,11 +237,14 @@ def main():
     for i, r in enumerate(obs.itertuples(), 1):
         img = str(DATA_PROCESSED / r.local_paths[0])
         row = {"obs_id": r.obs_id, "truth": r.truth, "image": img}
-        for service, key, fn in (("plantnet", args.plantnet_key, query_plantnet),
-                                 ("inat", args.inat_token, query_inat)):
+        geo = (r.lat, r.lon) if args.inat_geo else (None, None)
+        calls = [("plantnet", args.plantnet_key, lambda: query_plantnet(img, args.plantnet_key)),
+                 ("inat" + ("_geo" if args.inat_geo else ""), args.inat_token,
+                  lambda: query_inat(img, args.inat_token, *geo))]
+        for service, key, fn in calls:
             if not key:
                 continue
-            resp = _cached(service, r.obs_id, lambda: fn(img, key))
+            resp = _cached(service, r.obs_id, fn)
             row[f"{service}_top1"] = top1(resp)
             row[f"{service}_top5"] = [canonical_name(x["name"])
                                       for x in resp.get("results", [])[:5] if x.get("name")]
@@ -239,7 +256,7 @@ def main():
     df = pd.DataFrame(rows)
     df.to_parquet(args.out, index=False)
     errs = {s: int(df.get(f"{s}_error", pd.Series(dtype=object)).notna().sum())
-            for s in ("plantnet", "inat")}
+            for s in ("plantnet", "inat", "inat_geo") if f"{s}_error" in df}
     print(f"\nwrote {args.out}   errors: {errs}")
     print(score(rows, alias_sets()).round(4).to_string())
     print("\nNote: they choose from tens of thousands of taxa, we choose from 490 —")
