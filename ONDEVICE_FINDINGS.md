@@ -419,6 +419,68 @@ grow, which is what the ~244k undownloaded PlantNet images are for.
 
 **Pass = beats BioCLIP v1 by a margin whose paired interval excludes zero.**
 
+## Distillation ran, and recovered almost none of the gap
+
+40 epochs on an A100, 48,564 transfer images, regressing BioCLIP v1's tower onto
+cached BioCLIP-2 embeddings. Held-out cosine to the teacher reached **0.9564**
+from −0.0032 at init — by that metric it worked.
+
+| encoder | genus | species | regional AUROC | precision @20% | coverage |
+|---|---|---|---|---|---|
+| BioCLIP-2 *(cannot ship)* | 0.9747 | 0.8460 | 0.9791 | 0.956 | **0.722** |
+| **distilled student** | 0.9243 | 0.7706 | 0.9067 | 0.952 | 0.550 |
+| BioCLIP v1 | 0.9310 | 0.7604 | 0.9012 | 0.946 | 0.531 |
+| BioCLIP v1 int4 | 0.9179 | 0.7517 | 0.8869 | 0.939 | 0.499 |
+
+Paired against BioCLIP v1 over 3,435 in-catalogue observations:
+
+- **genus −0.007, CI [−0.015, +0.001]** — not significant, and pointing *down*
+- **species +0.010, CI [−0.004, +0.025]** — not significant
+
+**The student is statistically indistinguishable from the encoder it was built to
+beat.** Coverage moved 0.531 → 0.550 against BioCLIP-2's 0.722: roughly 2pp of a
+19pp gap, about a tenth. Against Pl@ntNet on identical photographs it scores
+0.675, still a significant loss at −0.065 [−0.110, −0.022].
+
+### Cosine to the teacher predicted nothing, again in the opposite direction
+
+This is the second time embedding similarity has failed to predict accuracy here,
+and the two failures point opposite ways:
+
+| | cosine to reference | accuracy cost/gain |
+|---|---|---|
+| int4 palettization | 0.932 | only −1.3pp genus |
+| **distilled student** | **0.9564** | **+0.01pp genus — nothing** |
+
+Quantization moved the embedding a long way and kept the class structure;
+distillation matched the teacher's embedding closely and did **not** acquire it.
+A student can sit at 0.956 cosine to a teacher and still lack the fine
+distinctions that separate 490 species, because most of the cosine is carried by
+coarse structure that both encoders already had. **Stop using cosine as a proxy
+for whether a representation works — measure the head.**
+
+### The transfer set was the binding constraint, and we could see it
+
+Held-out cosine plateaued at 0.9564 from epoch 32 while train kept climbing to
+0.9885 — eight flat epochs. That is the memorisation signature the notebook warns
+about, and it says 48,564 images was the limit, not the schedule. PlantNet has
+~244k images not yet downloaded; whether they would be enough is unknown, and the
+honest reading of a 10%-of-gap result is that they probably would not be.
+
+### What this closes
+
+**Distillation is measured and rejected**, this time with the numbers rather than
+on a cost estimate. Two options remain for the encoder gap:
+
+- **Accept ~50% coverage** on BioCLIP v1 int4 — measured, viable, and behind
+  Pl@ntNet on identification.
+- **Raise the 50 MB budget** for BioCLIP-2 (~164 MB at int4). It is the only
+  configuration that both keeps 72% coverage and beats Pl@ntNet.
+
+The second is now the only path to a system that is better at identification than
+what already exists for free, and it is a product decision about app size rather
+than a research problem.
+
 ## Still to do for a shippable model
 
 1. **Benchmark on an actual phone.** The 8.9 ms is an M4 Max Neural Engine, not

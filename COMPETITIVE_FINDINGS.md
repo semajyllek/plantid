@@ -19,6 +19,7 @@ correction alone moved 22 of Pl@ntNet's answers from wrong to right.
 | **Pl@ntNet** | ~50,000 | **0.740** | [0.701, 0.781] | 0.882 |
 | ours — Core ML int4 *(ships)* | 490 | 0.656 | [0.613, 0.697] | 0.847 |
 | ours — BioCLIP v1 fp32 | 490 | 0.637 | [0.591, 0.680] | 0.852 |
+| ours — distilled student *(ships)* | 490 | 0.675 | [0.632, 0.716] | — |
 | ours — BioCLIP-2 *(cannot ship)* | 490 | **0.785** | [0.746, 0.822] | 0.940 |
 
 Paired over the same observations:
@@ -27,7 +28,14 @@ Paired over the same observations:
 |---|---|---|---|
 | Core ML int4 *(ships)* | **−0.084** | [−0.129, −0.039] | ✓ significant loss |
 | BioCLIP v1 fp32 | −0.103 | [−0.148, −0.060] | ✓ significant loss |
+| distilled student *(ships)* | −0.065 | [−0.110, −0.022] | ✓ significant loss |
 | BioCLIP-2 *(cannot ship)* | **+0.045** | [+0.007, +0.084] | ✓ significant win |
+
+Distillation was the attempt to move the first row up to the last. It did not:
+the student lands at 0.675, still a significant loss, and is statistically
+indistinguishable from BioCLIP v1 on the full evaluation
+(`ONDEVICE_FINDINGS.md`). **Nothing that fits a phone beats Pl@ntNet at naming
+plants.**
 
 **The model that ships is significantly worse than Pl@ntNet at naming plants —
 by 8.4 percentage points — while choosing from 100x fewer species.** Our
@@ -110,7 +118,7 @@ intuition:
 
 | claim | status |
 |---|---|
-| better identification | **false** — −8.4pp against Pl@ntNet, from a 100x smaller label space |
+| better identification | **false** — −8.4pp against Pl@ntNet, and distillation failed to fix it |
 | calibrated abstention | **not defensible** — better on their scores than ours |
 | genus fallback | **not defensible** — same cascade, same afternoon |
 | runs offline / on-device | true against Pl@ntNet, **false against iNaturalist Seek**, which is on-device and free |

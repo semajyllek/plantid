@@ -215,7 +215,13 @@ Remaining: Core ML export, real-device Neural Engine benchmarking, and measuring
 what 4-bit palettization costs in accuracy.
 
 - ~~Swap to the best deployable encoder and distill the big encoder into it~~ —
-  unnecessary; an off-the-shelf biology-trained ViT-B already clears the bar.
+  **distillation was run and measured, and recovered ~10% of the gap.** The
+  student is statistically indistinguishable from BioCLIP v1 (genus −0.007, CI
+  [−0.015, +0.001]) despite reaching 0.9564 cosine to the teacher
+  (`ONDEVICE_FINDINGS.md`). Two options remain: accept ~50% coverage, or raise
+  the 50 MB budget so BioCLIP-2 can ship at ~164 MB. The second is the only
+  route to beating Pl@ntNet on identification, and it is a product decision
+  about app size rather than a research problem.
 - Core ML export → palettization / int8 quantization → **Neural Engine**
   benchmark on a real device.
 - Budget: **<50 MB, <100 ms/image on ANE.** The head is negligible
