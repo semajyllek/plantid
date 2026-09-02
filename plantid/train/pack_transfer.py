@@ -82,8 +82,12 @@ def main():
             if i % 10000 == 0:
                 print(f"  {i:,}/{len(rel):,}", flush=True)
     print(f"wrote {args.out} ({Path(args.out).stat().st_size / 1e9:.2f} GB)")
-    print("Self-contained: untar into an empty directory, cd there, and run "
-          "notebooks/distil_colab.ipynb — no checkout needed.")
+    if args.no_code:
+        print("Data only. Untar inside a checkout of the repo, so that "
+              "config.REPO_ROOT resolves data/processed.")
+    else:
+        print("Self-contained: untar into an empty directory, cd there, and run "
+              "notebooks/distil_colab.ipynb — no checkout needed.")
 
 
 if __name__ == "__main__":
