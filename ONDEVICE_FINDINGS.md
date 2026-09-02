@@ -481,6 +481,59 @@ The second is now the only path to a system that is better at identification tha
 what already exists for free, and it is a product decision about app size rather
 than a research problem.
 
+## BioCLIP-2 does fit a phone, if the size budget triples
+
+The competitive measurement made this the question that matters: BioCLIP-2 ties
+iNaturalist's *server* model on identical photographs
+(`COMPETITIVE_FINDINGS.md`), so if it runs on a phone the offline category has a
+new best member. Exported through the same pipeline:
+
+| | BioCLIP-2 int4 | BioCLIP v1 int4 |
+|---|---|---|
+| size on disk | **160.0 MB** | 46.2 MB |
+| cosine vs fp32 | **0.9818** (min 0.939) | 0.932 (min 0.831) |
+| ANE latency | 121 ms | 19 ms |
+| CPU latency | **71 ms** | 19 ms |
+| ops on ANE / CPU | 755 / 5 | 383 / 5 |
+
+**It converts, it dispatches to the Neural Engine, and it quantizes better than
+the small model does** — 0.982 against 0.932. That is the opposite of the usual
+worry about compressing large models: BioCLIP-2 has more redundancy to spend, so
+4-bit costs it less.
+
+Against the original budget it fails size by 3.2x and is marginal on latency.
+Both numbers deserve scrutiny rather than deference:
+
+- **160 MB is a large app, not an impossible one.** The 50 MB figure was set
+  early and never revisited; plenty of shipped apps are several hundred MB.
+- **121 ms is imperceptible for a photo capture.** It would rule out real-time
+  video identification, which this product does not do.
+- **CPU is faster than the ANE here** — 71 ms against 121 ms — which is unusual
+  and suggests the Neural Engine handles int4 dequantization poorly at this
+  size. Either is fine for a capture flow.
+
+### The GPU dequantization bug is general, not specific to one model
+
+Confirmed on a second, much larger model:
+
+| int4 per-grouped-channel, cosine vs fp32 | ANE | CPU | GPU |
+|---|---|---|---|
+| BioCLIP v1 | 0.935 | 0.935 | **0.204** |
+| BioCLIP-2 | 0.9818 | 0.9818 | **0.6275** |
+
+Both are wrong on Metal and correct everywhere else, so this is a Core ML
+per-grouped-channel dequantization fault rather than anything about our export.
+It also removes the tempting 25 ms GPU figure from consideration — that number is
+fast and meaningless. **`computeUnits` must exclude the GPU.**
+
+### What is not yet measured
+
+Cosine 0.982 suggests int4 costs BioCLIP-2 very little accuracy, but this project
+has twice shown cosine does not predict accuracy in either direction. Confirming
+it means embedding all 82k images through the Core ML model and re-running the
+evaluation: ~1.6 hours on CPU, ~2.8 on the ANE. Worth doing before any decision
+to ship, and not before.
+
 ## Still to do for a shippable model
 
 1. **Benchmark on an actual phone.** The 8.9 ms is an M4 Max Neural Engine, not
