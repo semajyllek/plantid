@@ -86,8 +86,10 @@ casual photo, and chasing it would produce a worse product. The right target:
 > **Precision at coverage, with an abstain option — and a genus level between
 > them.** Delivered: at an assumed 20% out-of-catalogue rate, **95.6% precision
 > on 72% of captures** — on BioCLIP-2, which *cannot ship*. On the deployable
-> BioCLIP v1 it is **94.6% on 53%** (`ONDEVICE_FINDINGS.md`), which reopens the
-> encoder question. Full figures below are the BioCLIP-2 ones:, on a curated 490-class catalogue and 5,534 real
+> BioCLIP v1 it is **94.6% on 53%**, and on the *actual Core ML int4 artifact*
+> **93.9% on 50%**, with genus 0.918 [0.902, 0.932] — clearing the ≥0.90 gate by
+> 0.15pp (`ONDEVICE_FINDINGS.md`). That thin margin reopens the encoder question.
+> Full figures below are the BioCLIP-2 ones:, on a curated 490-class catalogue and 5,534 real
 > observations covering 465 of its 497 source species (`REJECTION_FINDINGS.md`,
 > `CATALOG_FINDINGS.md`). The earlier "99.0% on 58%" was the λ=0.5/μ=2 row on
 > a 261-species catalogue, before thresholds were anchored to a stated

@@ -282,10 +282,64 @@ attached:
   untested here). Cheapest experiment of the four, and the evaluation set is
   iNaturalist, so it is the most likely to close part of the gap.
 
+## The shipped artifact, measured: genus 0.918, and it clears 0.90 by 0.15pp
+
+Everything above measures PyTorch. This measures the `.mlpackage`. The catalogue,
+background pool and evaluation set — **82,166 images** — were embedded through the
+int4 per-grouped-channel Core ML model on the Neural Engine, the heads refitted
+on those embeddings, and the full three-way rule re-run.
+
+Criterion declared before the run: *in-catalogue genus accuracy on real
+observations, matched configuration, with the lower bound of the 95% cluster
+bootstrap above 0.90.*
+
+| arm | genus | 95% CI | species | precision @20% | coverage |
+|---|---|---|---|---|---|
+| **A · matched (ships)** — int4 head, int4 eval | **0.9179** | **[0.9015, 0.9322]** | 0.7517 | 0.939 | 0.499 |
+| B · control — fp32 head, int4 eval | 0.9132 | [0.8969, 0.9282] | 0.7389 | 0.945 | 0.562 |
+| baseline — fp32 head, fp32 eval | 0.9310 | [0.9163, 0.9440] | 0.7604 | 0.946 | 0.531 |
+
+> **PASS — by 0.0015.** The gate is the CI lower bound above 0.90; it lands at
+> 0.9015. The claim "we have a phone-deployable model at ≥90% genus" is now
+> measured end-to-end rather than inferred, and it is true **with almost no
+> margin.** Anything that moves it down by more than a fifth of a point — a
+> harder species mix, a device whose ANE differs from an M4 Max, more evaluation
+> coverage — puts it under.
+
+**Quantization costs 1.31pp of genus accuracy**, 95% CI [0.74, 1.87], and 0.87pp
+of species [0.00, 1.75]. The PyTorch simulation predicted 1.1pp. **It was right**
+— which retroactively validates the palettization simulation as a method, and is
+worth noting because that simulation is much cheaper than this measurement.
+
+**Refitting the head on quantised embeddings is required for species, not proven
+for genus.** Matched minus mismatched: species **+1.28pp, CI [+0.37, +2.21]**;
+genus +0.47pp, CI [−0.09, +1.01]. So "a retrained head absorbs a systematic
+shift" holds at species level and is not established at genus level — weaker than
+the simulation section above implies, and the correct reading is that head
+refitting is a shipping requirement for the species answer specifically.
+
+Note arm B posts *higher* coverage (0.562) than arm A despite worse accuracy.
+Thresholds are refitted per arm and the two confidence distributions differ, so
+the operating points are not comparable directly; the accuracy columns are.
+
+**Verification.** Row counts match the manifests exactly for all six organ caches,
+no NaNs, and every evaluation photo is covered. Bulk cosine against fp32 —
+leaf 0.930, flower 0.944, bark 0.916 over 43,506 images — matches the 0.935 from
+the original 64-image spot check, so the bulk path did not diverge from
+`coreml.validate`.
+
+**What the product actually is, on the artifact that ships:** ~50% of captures
+answered at ~94% precision, with genus right 92% of the time on catalogue plants.
+
 ## Still to do for a shippable model
 
 1. **Benchmark on an actual phone.** The 8.9 ms is an M4 Max Neural Engine, not
-   an A-series one. Same framework and same dispatch now, but a different chip.
+   an A-series one. Same framework and same dispatch now, but a different chip —
+   and since the genus gate now passes by 0.15pp, a device that embeds even
+   slightly differently could move the verdict.
+2. **Pin `computeUnits` in the app** to `.cpuAndNeuralEngine`. Not a tuning
+   preference: the GPU backend returns uncorrelated embeddings for this exact
+   configuration, silently.
 2. **The deployable encoder has never been evaluated on real observations.**
    Every figure in `REJECTION_FINDINGS.md` — the 95.6%/72% headline included —
    is BioCLIP-**2** embeddings, and BioCLIP-2 is the 304M ViT-L that *cannot
