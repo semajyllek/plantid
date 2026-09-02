@@ -53,8 +53,32 @@ operating point already fitted in `REJECTION_FINDINGS.md`:
 | Pl@ntNet | 100% | 0.740 | **26** |
 | ours *(ships)* | 61% | **0.979** [0.961, 0.993] | **1** |
 
-**Twenty-six times fewer wrong answers.** That is the entire product thesis, and
-it is now measured rather than asserted.
+**Twenty-six times fewer wrong answers.**
+
+> ### Retracted as a differentiator
+>
+> This was written as "the entire product thesis". It is not, and the test that
+> kills it is one I should have run in the same sitting: **abstention is a
+> technique, not a moat.** Applied to Pl@ntNet's own returned scores at matched
+> coverage:
+>
+> | | coverage | precision | wrong per 100 |
+> |---|---|---|---|
+> | ours — three-way + reject class | 0.611 | 0.979 [0.961, 0.993] | 1.3 |
+> | Pl@ntNet — naive species threshold | 0.611 | 0.919 [0.887, 0.951] | 3.1 |
+> | **Pl@ntNet — through our exact cascade** | 0.613 | **0.996** [0.989, 1.000] | **0.2** |
+>
+> A single threshold on their top-1 score does *not* reproduce our behaviour —
+> 0.919 against 0.979 — so the machinery is doing something real. But summing
+> their scores by genus and running our two-threshold cascade beats us **six
+> times over on wrong answers**, using nothing but data they already return.
+> Their thresholds were tuned on this very data, so 0.996 is an upper bound; the
+> direction is not in doubt.
+>
+> The reason is straightforward: the cascade needs calibrated scores over a
+> label space, and theirs are calibrated over 50,000 species. We built the
+> better decision rule and they have the better classifier to run it on. **A
+> competitor could ship this in an afternoon.**
 
 ### State the cost honestly
 
@@ -75,10 +99,38 @@ answer depends entirely on what a wrong answer costs:
   report — a confident wrong answer is the failure mode that matters.
   **Declining wins, and the 26:1 ratio is the size of the win.**
 
-This is the first evidence that the product has a defensible niche, and it also
-says precisely what that niche is. It is not "a better plant identifier." It is
-"an identifier that is almost never confidently wrong," which is only valuable
-where being wrong is expensive.
+This is a real property of the system, and it is *not* a defensible niche —
+see the retraction above. "Almost never confidently wrong" is valuable, and it
+is also three hours of work for anyone holding a calibrated classifier.
+
+## So what is actually left
+
+Taking the differentiators in turn, against the evidence rather than against
+intuition:
+
+| claim | status |
+|---|---|
+| better identification | **false** — −8.4pp against Pl@ntNet, from a 100x smaller label space |
+| calibrated abstention | **not defensible** — better on their scores than ours |
+| genus fallback | **not defensible** — same cascade, same afternoon |
+| runs offline / on-device | true against Pl@ntNet, **false against iNaturalist Seek**, which is on-device and free |
+| small curated catalogue | a liability at identification; possibly an asset for a decision-specific product, untested |
+
+**On the current evidence there is no demonstrated differentiator.** The honest
+position is that this is a well-engineered system without a product case yet,
+and that the case would have to come from a use context nobody here has
+measured — one where the catalogue being 490 *curated* species is the point,
+rather than an accident of image availability.
+
+What has not been measured, and would change the picture if favourable:
+
+- **Seek's on-device model.** iNaturalist states plainly that shrinking it cost
+  accuracy versus their web model. If Seek-on-plants is well below our 0.656,
+  "offline and accurate" is a real gap. It has no API, so this needs manual
+  comparison on a device.
+- **A decision-specific catalogue.** These 490 species were chosen by image
+  availability, not by "plants where being wrong is expensive". Toxicity and
+  edibility coverage is unknown.
 
 ## Caveats, in order of how much they bite
 
