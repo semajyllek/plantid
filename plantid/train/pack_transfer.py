@@ -39,8 +39,14 @@ def code_members(repo_root=None):
                   if "__pycache__" not in p.parts)
 
 
-def members(cache_dir=DATA_PROCESSED, teacher=TEACHER):
-    """Paths relative to `cache_dir`, in the layout the trainer expects."""
+def members(cache_dir=DATA_PROCESSED, teacher=TEACHER, images=True):
+    """Paths relative to `cache_dir`, in the layout the trainer expects.
+
+    `images=False` yields only the manifests and cached teacher embeddings --
+    183 MB against 4 GB. The images are all reachable from the Pl@ntNet API by
+    `image_id` alone (`build_dataset.IMAGE_URL`), so a GPU box with fast network
+    fetches them far quicker than a home connection uploads them.
+    """
     from plantid.features.embed_background import cache_path as bg_path
     from plantid.features.embed_catalog import cache_path as cat_path
 
@@ -50,7 +56,8 @@ def members(cache_dir=DATA_PROCESSED, teacher=TEACHER):
             p = fn(organ, teacher, cache_dir)
             if p.exists():
                 out.append(p.name)
-    out += list(build_transfer_set(cache_dir)["local_path"])
+    if images:
+        out += list(build_transfer_set(cache_dir)["local_path"])
     return out
 
 
@@ -60,10 +67,13 @@ def main():
     ap.add_argument("--cache-dir", default=str(DATA_PROCESSED))
     ap.add_argument("--no-code", action="store_true",
                     help="data only; the target already has a matching checkout")
+    ap.add_argument("--no-images", action="store_true",
+                    help="manifests and teacher embeddings only (183 MB); the "
+                         "target downloads images from Pl@ntNet itself")
     args = ap.parse_args()
 
     cache_dir = Path(args.cache_dir)
-    rel = members(cache_dir)
+    rel = members(cache_dir, images=not args.no_images)
     total = sum((cache_dir / r).stat().st_size for r in rel if (cache_dir / r).exists())
     print(f"{len(rel):,} files, {total / 1e9:.2f} GB -> {args.out}", flush=True)
 
@@ -82,7 +92,10 @@ def main():
             if i % 10000 == 0:
                 print(f"  {i:,}/{len(rel):,}", flush=True)
     print(f"wrote {args.out} ({Path(args.out).stat().st_size / 1e9:.2f} GB)")
-    if args.no_code:
+    if args.no_images:
+        print("Seed only — no images. Untar inside a checkout, then fetch the "
+              "images with plantid.data.build_dataset.download_images.")
+    elif args.no_code:
         print("Data only. Untar inside a checkout of the repo, so that "
               "config.REPO_ROOT resolves data/processed.")
     else:
