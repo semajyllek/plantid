@@ -203,7 +203,15 @@ def evaluate(model, loader, device, amp_dtype=None):
 
 
 def train(epochs=40, batch_size=256, lr=1e-4, head_lr=1e-3, workers=8, val_frac=0.05,
-          out=OUT_DIR / "student.pt", limit=None, device=None, seed=0, log_every=50):
+          out=OUT_DIR / "student.pt", limit=None, device=None, seed=0, log_every=50,
+          resume=True):
+    """`out` should point at durable storage on a preemptible box.
+
+    A Colab VM's disk dies with the session, so saving there means a run that is
+    interrupted at epoch 39 is worth exactly nothing. Point `out` at a mounted
+    Drive path and every improvement survives; `resume` then picks the run back up
+    at the epoch it reached rather than starting over.
+    """
     import torch
     from torch.utils.data import DataLoader
 
@@ -236,11 +244,40 @@ def train(epochs=40, batch_size=256, lr=1e-4, head_lr=1e-3, workers=8, val_frac=
 
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    hist, best = [], -1.0
-    base = evaluate(model, va, device, amp)
-    print(f"epoch  0 (init, = BioCLIP v1 pooled): held-out cosine {base:.4f}", flush=True)
+    ckpt_path = out.with_suffix(".ckpt")
 
-    for ep in range(1, epochs + 1):
+    hist, best, start = [], -1.0, 1
+    base = None
+    if resume and ckpt_path.exists():
+        ck = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(ck["model"])
+        hist, best, start, base = ck["history"], ck["best"], ck["epoch"] + 1, ck["baseline_cos"]
+        print(f"resuming from {ckpt_path} at epoch {start} "
+              f"(best held-out so far {best:.4f})", flush=True)
+        # OneCycle is defined over the whole run; rebuild it for what is left
+        sched = torch.optim.lr_scheduler.OneCycleLR(
+            opt, max_lr=[lr, head_lr], total_steps=max((epochs - start + 1) * len(tr), 1),
+            pct_start=0.1)
+    if base is None:
+        base = evaluate(model, va, device, amp)
+        print(f"epoch  0 (init, = BioCLIP v1 pooled): held-out cosine {base:.4f}", flush=True)
+    if start > epochs:
+        print(f"already trained {epochs} epochs; nothing to do")
+        return best
+
+    def save(ep, val):
+        """Model weights for `load_encoder`, plus the state needed to resume.
+
+        Written on every epoch rather than only on improvement: the point is to
+        survive the machine going away, and an epoch that did not improve still
+        represents real progress through the schedule.
+        """
+        torch.save({"model": model.state_dict(), "epoch": ep, "best": best,
+                    "history": hist, "baseline_cos": base, "val_cos": val}, ckpt_path)
+        json.dump({"baseline_cos": base, "history": hist},
+                  open(out.with_suffix(".json"), "w"), indent=1)
+
+    for ep in range(start, epochs + 1):
         t0, run = time.time(), 0.0
         for i, (x, y) in enumerate(tr):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
@@ -259,12 +296,11 @@ def train(epochs=40, batch_size=256, lr=1e-4, head_lr=1e-3, workers=8, val_frac=
                      "secs": time.time() - t0})
         flag = ""
         if val > best:
-            best, flag = val, "  *saved"
-            torch.save(model.state_dict(), out)
+            best, flag = val, "  *best"
+            torch.save(model.state_dict(), out)   # plain state_dict for load_encoder
+        save(ep, val)
         print(f"epoch {ep:2d}: train cosine {1-run/len(tr):.4f}  held-out {val:.4f}"
               f"  ({time.time()-t0:.0f}s){flag}", flush=True)
-        json.dump({"baseline_cos": base, "history": hist},
-                  open(out.with_suffix(".json"), "w"), indent=1)
 
     print(f"\nbest held-out cosine {best:.4f} (started {base:.4f}) -> {out}")
     print("next: embed with variant 'bioclip1_distil', then "
@@ -281,10 +317,15 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, default=None, help="subsample, for smoke tests")
     ap.add_argument("--device", default=None)
-    ap.add_argument("--out", default=str(OUT_DIR / "student.pt"))
+    ap.add_argument("--out", default=str(OUT_DIR / "student.pt"),
+                    help="put this on durable storage (a mounted Drive path) if the "
+                         "machine can be preempted — the VM disk dies with the session")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="ignore an existing .ckpt and start from scratch")
     args = ap.parse_args()
     train(epochs=args.epochs, batch_size=args.batch_size, lr=args.lr, head_lr=args.head_lr,
-          workers=args.workers, limit=args.limit, device=args.device, out=args.out)
+          workers=args.workers, limit=args.limit, device=args.device, out=args.out,
+          resume=not args.no_resume)
 
 
 if __name__ == "__main__":
