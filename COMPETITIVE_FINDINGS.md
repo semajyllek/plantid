@@ -158,13 +158,56 @@ trick.** An independent peer-reviewed comparison of free plant-ID apps
 **Seek answers 66% of the time and was correct on every one.** That is calibrated
 abstention, on-device, free, shipped — the thing this document called "the entire
 product thesis" two days ago. Our comparable figures are 61% coverage at 0.979.
+**The claim that nobody else ships on-device calibrated abstention is false.**
 
-Caveats that keep this from being a clean loss: it is one test set of British
-flora, "confirmed identification" does not state a taxonomic rank (Seek is
-documented as backing off to coarser ranks, so some of those may be family- or
-genus-level), and the same study scores Pl@ntNet at 86.6% first-choice against
-the 74.0% we measured — so their images are evidently easier than ours. But the
-claim that nobody else ships on-device calibrated abstention is **false**.
+### Reading the paper properly changes the comparison
+
+857 photographs of 277 species, taken by 16 ecological practitioners on their own
+phones as "record shots", UK wild and naturalised plants with exotics
+deliberately excluded, one photograph per plant. Five apps. Species top-1:
+Pl@ntNet 86.6%, LeafSnap 86.9%, **Seek 66.0%**, Google Lens 57%, PlantSnap ~46%.
+
+That test set is **much easier than ours** — and Pl@ntNet gives us the yardstick
+to say by how much, since we measured it on our own images:
+
+| | Pl@ntNet | the other system | gap |
+|---|---|---|---|
+| their set (UK, 277 spp) | 86.6 | Seek **66.0** | −20.6pp |
+| our set (iNat, 465 spp) | 74.0 | ours, int4, 1 photo **65.6** | **−8.4pp** |
+
+**Measured against a common reference, we sit 12.2pp closer to Pl@ntNet than
+Seek does** — and Pl@ntNet scores 12.6pp lower on our images than on theirs,
+which is the difficulty difference made explicit. At genus the two are level:
+Seek is 4.0pp behind Pl@ntNet on their set, we are 3.5pp behind on ours.
+
+So on species identification we appear to be *ahead* of Seek, not behind it. The
+raw 66% vs 65.6% comparison is misleading because the test sets are not
+comparable.
+
+### Three things that cut the other way
+
+1. **The study used apps as of 3 September 2020.** Seek's on-device model has
+   been replaced repeatedly since — it was ~20k taxa then and a beta now carries
+   ~80k. Today's Seek is very likely better than 66%, and this is the caveat that
+   bites hardest.
+2. **Seek was given location; we use none.** The authors entered county-level
+   geolocation as metadata "to assist with automatic identification". On a
+   UK-only test set that is a powerful prior — iNaturalist's own geomodel is
+   worth +12pp of top-1 (`LOCATION_FINDINGS.md`). Part of Seek's 66% is
+   geography, and none of our 65.6% is.
+3. **Bridging two test sets through a third system is an assumption**, not a
+   measurement. It assumes the difficulty gap scales similarly for both, which is
+   plausible and unverified.
+
+### What it is fair to conclude
+
+Not "we beat Seek" — the bridge is too indirect and the model is six years stale.
+But the earlier claim that Seek's existence settles the on-device question was
+too strong in the other direction. **The honest position is that on-device
+calibrated abstention is occupied territory, and how our system compares within
+it is unresolved.** A direct measurement is worth an hour: install Seek, show it
+50 photographs from our evaluation set, record the answer *and the rank it
+answers at*.
 
 ## What has not been measured, and would change the picture
 
