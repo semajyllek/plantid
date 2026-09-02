@@ -121,7 +121,7 @@ intuition:
 | better identification | **false** — −8.4pp against Pl@ntNet, and distillation failed to fix it |
 | calibrated abstention | **not defensible** — better on their scores than ours |
 | genus fallback | **not defensible** — same cascade, same afternoon |
-| runs offline / on-device | true against Pl@ntNet, **false against iNaturalist Seek**, which is on-device and free |
+| runs offline / on-device | **true against Pl@ntNet** — its app needs a network. Contested against Seek; see below |
 | small curated catalogue | a liability at identification; possibly an asset for a decision-specific product, untested |
 
 **On the current evidence there is no demonstrated differentiator.** The honest
@@ -130,12 +130,49 @@ and that the case would have to come from a use context nobody here has
 measured — one where the catalogue being 490 *curated* species is the point,
 rather than an accident of image availability.
 
-What has not been measured, and would change the picture if favourable:
+## Offline is a real edge over Pl@ntNet — and Seek already occupies it
 
-- **Seek's on-device model.** iNaturalist states plainly that shrinking it cost
-  accuracy versus their web model. If Seek-on-plants is well below our 0.656,
-  "offline and accurate" is a real gap. It has no API, so this needs manual
-  comparison on a device.
+Two corrections to the dismissal above, in opposite directions.
+
+**Offline genuinely differentiates us from Pl@ntNet.** Their app requires a
+network connection. Ours answers in ~9–19 ms on the Neural Engine with the radio
+off — in a forest, abroad without roaming, in a basement greenhouse. That is a
+real capability difference, not a marketing one.
+
+*(A related point that is often confused: Pl@ntNet's 500/day limit is on the
+**developer API**, not the consumer app, which is free, ad-supported and
+unlimited. So it is not a consumer-facing weakness. It is, however, a strong
+argument for owning the model rather than reselling their API — at
+€0.005/identification, a product doing a million scans a month would pay
+~€5,000/month for something our on-device model does at zero marginal cost.)*
+
+**But the on-device niche is already occupied, and by something that does our
+trick.** An independent peer-reviewed comparison of free plant-ID apps
+([Hart et al. 2023, *Plants People Planet*](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1002/pan3.10460),
+857 images) reports:
+
+> iNaturalist Seek provided a binary classification on whether the user should
+> have confidence in the identification. Of the 562 of 857 images (66%) where a
+> confirmed identification was given, this was correct **in all cases**.
+
+**Seek answers 66% of the time and was correct on every one.** That is calibrated
+abstention, on-device, free, shipped — the thing this document called "the entire
+product thesis" two days ago. Our comparable figures are 61% coverage at 0.979.
+
+Caveats that keep this from being a clean loss: it is one test set of British
+flora, "confirmed identification" does not state a taxonomic rank (Seek is
+documented as backing off to coarser ranks, so some of those may be family- or
+genus-level), and the same study scores Pl@ntNet at 86.6% first-choice against
+the 74.0% we measured — so their images are evidently easier than ours. But the
+claim that nobody else ships on-device calibrated abstention is **false**.
+
+## What has not been measured, and would change the picture
+
+- **Seek's accuracy at species rank specifically, on our images.** The study
+  above does not separate rank, and Seek's whole design is to answer coarser when
+  unsure. If its 66% "confident" answers are mostly genus and family while ours
+  are 44% species, the products differ more than the headline suggests. No API,
+  so this needs manual comparison on a device — perhaps 50 photographs, an hour.
 - **A decision-specific catalogue.** These 490 species were chosen by image
   availability, not by "plants where being wrong is expensive". Toxicity and
   edibility coverage is unknown.
