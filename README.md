@@ -71,6 +71,9 @@ negative results are the more reusable half.
   budget, distillation cancelled, 4-bit palettization costs 1.1pp.
 - **[`HIERARCHY_FINDINGS.md`](HIERARCHY_FINDINGS.md)** — why genus is a
   first-class answer rather than a hedge.
+- **[`COMPETITIVE_FINDINGS.md`](COMPETITIVE_FINDINGS.md)** — head-to-head with
+  Pl@ntNet on identical photographs. We name fewer plants correctly than they do
+  and give **26x fewer wrong answers**, which is the whole product thesis.
 
 **Measured and rejected**
 - **[`LOCATION_FINDINGS.md`](LOCATION_FINDINGS.md)** — geographic prior. Real

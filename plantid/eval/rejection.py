@@ -246,6 +246,7 @@ def build_observations(emb_path, cache_dir=DATA_PROCESSED, min_photos=2, combine
         # predicted class -- for hybrids and merged species it would never match
         binom = name_fn(r.species_name) or canonical_name(r.species_name)
         rows.append({
+            "obs_id": r.obs_id,   # lets results join to an external system's answers
             "bucket": r.bucket, "species": binom, "genus": r.genus,
             "pred_species": pred, "pred_genus": gpred,
             "species_conf": float(sc[0]), "genus_conf": float(gc[0]),

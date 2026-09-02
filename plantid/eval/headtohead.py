@@ -12,6 +12,19 @@ taxa; we choose from 490. **They are solving a much harder problem on the same
 image, so a tie is a loss for us.** That is the point: if we cannot beat them
 comfortably on the small set we specialise in, specialising bought nothing.
 
+## Names must be reconciled before anything is compared
+
+The first trial run scored Pl@ntNet wrong for answering *Leuenbergeria bleo* to
+our *Pereskia bleo* — the same plant under its current name. 9.5% of this
+catalogue's names are a taxonomic generation behind (`INAT_FINDINGS.md`), so raw
+string comparison systematically penalises whichever system uses current
+nomenclature, which is not a fact about identification at all.
+
+So each truth species carries an **alias set** — its catalogue name plus whatever
+`resolve_taxa` maps it to — and a prediction matching any alias is correct. The
+share of hits that needed an alias is reported, since it is the size of the
+effect being corrected for.
+
 ## Design
 
 - **One observation per species.** With ~465 in-catalogue species and a 500/day
@@ -71,13 +84,49 @@ def sample_observations(n=200, seed=0, cache_dir=DATA_PROCESSED):
     return one.reset_index(drop=True)
 
 
+def alias_sets(cache_dir=DATA_PROCESSED):
+    """truth name -> {accepted names}, from `resolve_taxa` output.
+
+    Regenerate with:
+        python -m plantid.data.resolve_taxa --names <binomials> \
+            --out data/processed/catalog_taxonomy.json --no-counts
+    """
+    path = cache_dir / "catalog_taxonomy.json"
+    if not path.exists():
+        return {}
+    out = {}
+    for r in json.loads(path.read_text()):
+        name, resolved = r.get("catalog_name"), r.get("resolved")
+        out.setdefault(name, {name})
+        if resolved:
+            out[name].add(resolved)
+            out.setdefault(resolved, {resolved}).add(name)
+    return out
+
+
+def correct(pred, truth, aliases, genus=False):
+    """Does `pred` name the same plant as `truth`, allowing for synonymy?"""
+    if pred is None:
+        return False
+    accepted = aliases.get(truth, {truth})
+    if genus:
+        return genus_of(pred) in {genus_of(a) for a in accepted}
+    return pred in accepted
+
+
 def _cached(service, obs_id, fn):
+    """Cache successes only.
+
+    Caching an error would be permanent, and on a 500/day free tier a transient
+    failure that poisons the cache costs a whole day's quota to discover.
+    """
     CACHE.mkdir(parents=True, exist_ok=True)
     path = CACHE / f"{service}_{obs_id}.json"
     if path.exists():
         return json.loads(path.read_text())
     result = fn()
-    path.write_text(json.dumps(result))
+    if "error" not in result:
+        path.write_text(json.dumps(result))
     time.sleep(SLEEP)
     return result
 
@@ -126,16 +175,25 @@ def genus_of(name):
     return name.split()[0] if name else None
 
 
-def score(rows):
+def score(rows, aliases=None):
     """Per-service species and genus top-1, and top-5 species containment."""
+    aliases = aliases if aliases is not None else {}
     out = []
     for service in ("plantnet", "inat"):
         got = [r for r in rows if r.get(f"{service}_top1") is not None]
-        sp = np.array([r[f"{service}_top1"] == r["truth"] for r in got], float)
-        gn = np.array([genus_of(r[f"{service}_top1"]) == genus_of(r["truth"]) for r in got], float)
-        t5 = np.array([r["truth"] in r[f"{service}_top5"] for r in got], float)
+        if not got:
+            continue
+        sp = np.array([correct(r[f"{service}_top1"], r["truth"], aliases) for r in got], float)
+        gn = np.array([correct(r[f"{service}_top1"], r["truth"], aliases, genus=True)
+                       for r in got], float)
+        t5 = np.array([any(correct(p, r["truth"], aliases) for p in r[f"{service}_top5"])
+                       for r in got], float)
+        # how many hits needed synonymy — the size of the naming correction
+        strict = np.array([r[f"{service}_top1"] == r["truth"] for r in got], float)
+        lo, hi = boot(sp)
         out.append({"system": service, "n": len(got), "species_top1": sp.mean(),
-                    "genus_top1": gn.mean(), "species_top5": t5.mean()})
+                    "sp_lo": lo, "sp_hi": hi, "genus_top1": gn.mean(),
+                    "species_top5": t5.mean(), "via_alias": sp.sum() - strict.sum()})
     return pd.DataFrame(out).set_index("system")
 
 
@@ -183,7 +241,7 @@ def main():
     errs = {s: int(df.get(f"{s}_error", pd.Series(dtype=object)).notna().sum())
             for s in ("plantnet", "inat")}
     print(f"\nwrote {args.out}   errors: {errs}")
-    print(score(rows).round(4).to_string())
+    print(score(rows, alias_sets()).round(4).to_string())
     print("\nNote: they choose from tens of thousands of taxa, we choose from 490 —")
     print("a tie is a loss for us. Compare against our own numbers accordingly.")
 

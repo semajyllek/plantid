@@ -87,3 +87,33 @@ def test_sampling_excludes_out_of_catalogue_observations(tmp_path):
     })
     df.to_parquet(tmp_path / "inat_observations.parquet")
     assert list(sample_observations(n=10, cache_dir=tmp_path)["truth"]) == ["Sedum acre"]
+
+
+def test_a_current_name_is_not_scored_wrong_against_our_stale_one():
+    """The bug the first trial run exposed: Pl@ntNet answered Leuenbergeria bleo
+    to our Pereskia bleo -- the same plant -- and was marked incorrect. 9.5% of
+    this catalogue's names are a taxonomic generation behind, so string equality
+    measures nomenclature rather than identification."""
+    from plantid.eval.headtohead import correct
+
+    aliases = {"Pereskia bleo": {"Pereskia bleo", "Leuenbergeria bleo"}}
+    assert correct("Leuenbergeria bleo", "Pereskia bleo", aliases)
+    assert correct("Pereskia bleo", "Pereskia bleo", aliases)
+    assert not correct("Punica granatum", "Pereskia bleo", aliases)
+
+
+def test_alias_matching_also_applies_at_genus_level():
+    """A renamed species usually moves genus too, so genus scoring needs the same
+    treatment or it inherits the same bias."""
+    from plantid.eval.headtohead import correct
+
+    aliases = {"Pereskia bleo": {"Pereskia bleo", "Leuenbergeria bleo"}}
+    assert correct("Leuenbergeria grandifolia", "Pereskia bleo", aliases, genus=True)
+    assert not correct("Punica granatum", "Pereskia bleo", aliases, genus=True)
+
+
+def test_species_with_no_alias_entry_falls_back_to_exact_match():
+    from plantid.eval.headtohead import correct
+
+    assert correct("Sedum acre", "Sedum acre", {})
+    assert not correct("Sedum album", "Sedum acre", {})
