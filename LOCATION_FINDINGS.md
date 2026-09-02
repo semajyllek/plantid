@@ -177,6 +177,31 @@ read optimistically because the story was good.
   What remains untested is unconstrained re-ranking (ruled out on product
   grounds), seasonality, and prevalence-weighting the prior.
 
+## Scope: this result is a property of a 490-species regional catalogue
+
+The conclusion above is stated too broadly, and iNaturalist's published numbers
+show why. Their geographic prior is worth **+12pp of top-1 accuracy** — vision
+alone 75%, vision + 1-degree grid 83%, vision + geomodel 87% — on a label space
+of 108,124 taxa spanning the whole planet
+([Introducing the iNaturalist Geomodel](https://www.inaturalist.org/blog/84677-introducing-the-inaturalist-geomodel)).
+We measured +0.007 utility with an interval containing zero.
+
+Both are correct, and the difference is not methodological:
+
+- **Our label space is already narrow.** 490 species, all Europe/N. America.
+  Location narrows it 2.7–9.5x, but genus accuracy is *already* 0.975, so there
+  is almost nothing left for a prior to resolve. The AUROC gain lands where the
+  operating point never looks.
+- **Theirs is 220x larger and global.** At 108k taxa most of the label space is
+  ruled out by geography alone, so the prior is doing enormous work before the
+  photograph is consulted at all.
+
+**The value of a geographic prior scales with label-space size and geographic
+spread, and ours has neither.** So the honest statement is *"location does not
+pay for a 490-species regional catalogue"* — not *"location does not pay"*. Any
+expansion toward a global or much larger catalogue should re-open this, and
+should expect the finding to reverse rather than replicate.
+
 ## Known limitations
 
 - **Prevalence is not modelled.** Every species is capped at 200 sampled points,

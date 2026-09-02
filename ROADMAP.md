@@ -281,6 +281,12 @@ small-sample noise.
 What remains untested: unconstrained re-ranking (ruled out on product grounds),
 prevalence-weighting the prior, and seasonality.
 
+**Scoped, not general.** iNaturalist's geographic prior is worth +12pp of top-1
+across 108,124 global taxa. Ours is worth ~0 across 490 regional species,
+because genus accuracy is already 0.975 and there is nothing left to resolve.
+The value of a geographic prior scales with label-space size and geographic
+spread. Re-open this if the catalogue ever grows substantially.
+
 Seasonality (date) was never tested and remains unexplored.
 
 ---
