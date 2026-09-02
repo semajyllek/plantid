@@ -183,6 +183,36 @@ suspicion is that some ops fell off the ANE. They did not — **both dispatch
 identically, 383 ops to the ANE and 5 to CPU.** The difference is the cost of a
 per-channel lookup table against a single shared one. Worth paying at 19 ms.
 
+### The shipping configuration is silently wrong on the GPU backend
+
+Checking whether the Neural Engine and the GPU agree — intended as a throughput
+question, since GPU is 2.6x faster and the bulk embedding job does not care which
+runs it — turned up something that matters for the app.
+
+| vs PyTorch fp32, cosine | ANE | CPU | GPU |
+|---|---|---|---|
+| fp16 | 0.9998 | 0.9997 | **1.0000** |
+| int4, per-tensor | 0.422 | — | 0.422 |
+| **int4, per-grouped-channel** | **0.935** | **0.935** | **0.204** |
+
+**Only the configuration we would ship breaks, and only on GPU.** ANE and CPU
+agree with each other to three decimals; the Metal backend returns something
+uncorrelated with the right answer. It is not a palettization problem in general
+— per-tensor int4 gives the same (bad) 0.422 on both backends, so the two
+backends agree when the weights are per-tensor. It is per-grouped-channel
+dequantization specifically.
+
+The failure is silent in the worst way: **the GPU still returns a plausible,
+correctly-shaped, unit-norm embedding.** Nothing raises, and no downstream check
+would notice except an accuracy measurement.
+
+**Consequence for the app: pin `computeUnits` to `.cpuAndNeuralEngine`.** The
+default `.all` happened to select the ANE on this machine, which is why the
+earlier validation passed — but `.all` is a request, not a guarantee, and a
+device where the Neural Engine is busy or unavailable can fall back to the GPU
+and serve garbage. This is now recorded in `deploy/embed_coreml.py`, which pins
+the units for the same reason.
+
 ### Two conversion obstacles, both silent-ish
 
 1. `nn.MultiheadAttention` takes a fused eval-mode fast path that traces as
