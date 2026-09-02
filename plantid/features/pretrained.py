@@ -37,6 +37,10 @@ ENCODERS = {
     # trained on the right data rather than compressed large ones.
     "bioclip1": {"loader": "open_clip", "spec": "hf-hub:imageomics/bioclip"},
     "bioclip_inat": {"loader": "open_clip", "spec": "hf-hub:imageomics/bioclip-vit-b-16-inat-only"},
+    # A ViT-B distilled from BioCLIP-2's embeddings (`train/distil.py`). Same
+    # deployable shape as bioclip1, but emits the teacher's 768-d space, so the
+    # heads it feeds are 768-wide. Needs the checkpoint below to exist.
+    "bioclip1_distil": {"loader": "distil", "spec": "distil/student.pt"},
     "mobileclip2_s2": {"loader": "open_clip", "spec": "hf-hub:timm/MobileCLIP2-S2-OpenCLIP"},
     # In-domain: DINOv2 ViT-B/14 (reg4) fine-tuned on PlantCLEF 2024 (7,806
     # species). Published as a bare safetensors checkpoint with no timm config,
@@ -95,6 +99,19 @@ def load_encoder(variant: str, device: str | None = None):
         data_cfg = timm.data.resolve_model_data_config(model)
         data_cfg["input_size"] = (3, cfg["img_size"], cfg["img_size"])
         preprocess = timm.data.create_transform(**data_cfg, is_training=False)
+    elif cfg["loader"] == "distil":
+        from plantid.config import DATA_PROCESSED
+        from plantid.train.distil import build_student
+
+        ckpt = DATA_PROCESSED / cfg["spec"]
+        if not ckpt.exists():
+            raise FileNotFoundError(
+                f"no distilled checkpoint at {ckpt} — run plantid.train.distil first")
+        model = build_student(checkpoint=ckpt, device="cpu")
+        # the student bakes normalisation nowhere: reuse open_clip's transform
+        import open_clip
+
+        _, _, preprocess = open_clip.create_model_and_transforms("hf-hub:imageomics/bioclip")
     elif cfg["loader"] == "open_clip":
         import open_clip
 

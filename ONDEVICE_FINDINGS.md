@@ -73,9 +73,10 @@ were. The background pool is now embedded per encoder.
 ## What this means for Phase 5
 
 - **Ship BioCLIP v1 at 4-bit.** 43 MB, ~22 ms, genus 0.914 after quantization.
-- **Distillation is cancelled.** It was the plan of record; it would have been
-  weeks of work to recover part of a gap that an off-the-shelf model already
-  closes.
+- **Distillation is cancelled.** It was the plan of record; it looked like weeks
+  of work to recover part of a gap that an off-the-shelf model already closes.
+  *(Both halves of this have since been corrected: the gap is 19pp of coverage,
+  not 3pp of accuracy, and the work is an afternoon — see below.)*
 - **MobileCLIP2-S2 (17.9 MB) is the fallback** if 43 MB proves too large in
   practice, and is untested — worth measuring only if the size budget tightens.
 
@@ -277,7 +278,8 @@ attached:
   int4 by the measured 0.54 bytes/param — large for an app but not impossible,
   and it is the only option that keeps 72% coverage.
 - **Distil BioCLIP-2 into a ViT-B.** Now has a real justification: 19pp of
-  coverage, where before it looked like 3pp of an accuracy metric.
+  coverage, where before it looked like 3pp of an accuracy metric. And it is
+  hours, not weeks — see below.
 - ~~**Try `bioclip_inat`**~~ — **done, and eliminated.** Worse than BioCLIP v1 on
   both corpora (genus −1.95pp, CI [−2.75, −1.17]) and its genus interval falls
   under the 0.90 gate before quantization. See below.
@@ -376,8 +378,46 @@ domain cost accuracy rather than buying it.
 | ~~`bioclip_inat`~~ | **eliminated** — worse on both corpora, fails the gate outright |
 | accept ~50% coverage on BioCLIP v1 int4 | measured and viable: genus 0.918, precision 0.939 |
 | raise the 50 MB budget for BioCLIP-2 | ~164 MB at int4; the only option that keeps 72% coverage |
-| distil BioCLIP-2 into a ViT-B | still open, still weeks of work |
+| distil BioCLIP-2 into a ViT-B | **open, and cheap** — see below |
 | MobileCLIP2-S2 (17.9 MB) | untested, smaller and weaker — only if the budget *tightens* |
+
+## Distillation was mis-costed by an order of magnitude
+
+"Weeks of work" appears twice above as the reason distillation was cancelled. It
+was wrong, and it was load-bearing — a wrong number justifying a real decision.
+Re-costed against what now exists:
+
+- **The teacher never runs.** 82,217 BioCLIP-2 embeddings are already cached, so
+  training regresses onto vectors on disk. No ViT-L forward passes.
+- **Nothing is downloaded.** The transfer set is images already fetched.
+- **The student starts as BioCLIP v1**, a biology-trained ViT-B, not noise.
+- **The evaluation harness already takes it.** `--variant bioclip1_distil` drops
+  into the same pipeline every other encoder uses.
+
+On an A100 80GB, ViT-B/16 at 224px in bf16 runs ~700 img/s, and the legitimate
+transfer set is **48,564 images** — about a minute per epoch. Forty epochs is
+under an hour. **A pilot is an afternoon.** `plantid/train/distil.py` and
+`notebooks/distil_colab.ipynb` implement it; a 2-epoch smoke run on MPS took
+held-out cosine from −0.004 to 0.811.
+
+### The leak this could have had
+
+The student must never see an image the system is evaluated on. Training on the
+catalogue test split, the val split (temperature scaling is fitted there), or any
+iNaturalist observation would fit the student to the exact photographs it is then
+scored with — raising no error and looking like a large win. The transfer set is
+therefore **catalogue train plus the background pool, and nothing else**:
+30,398 + 18,166 = 48,564. `tests/test_distil.py` pins each exclusion.
+
+### What is genuinely unknown
+
+Not the cost — the outcome. ViT-L → ViT-B feature distillation on 48k in-domain
+images plausibly recovers *part* of the 19pp coverage gap; nothing establishes it
+recovers all of it. And 48k is small: if train cosine keeps climbing while
+held-out cosine flattens, the student is memorising and the transfer set needs to
+grow, which is what the ~244k undownloaded PlantNet images are for.
+
+**Pass = beats BioCLIP v1 by a margin whose paired interval excludes zero.**
 
 ## Still to do for a shippable model
 
