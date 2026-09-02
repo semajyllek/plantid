@@ -278,9 +278,9 @@ attached:
   and it is the only option that keeps 72% coverage.
 - **Distil BioCLIP-2 into a ViT-B.** Now has a real justification: 19pp of
   coverage, where before it looked like 3pp of an accuracy metric.
-- **Try `bioclip_inat`** (ViT-B trained on iNat only, already in `ENCODERS` and
-  untested here). Cheapest experiment of the four, and the evaluation set is
-  iNaturalist, so it is the most likely to close part of the gap.
+- ~~**Try `bioclip_inat`**~~ — **done, and eliminated.** Worse than BioCLIP v1 on
+  both corpora (genus −1.95pp, CI [−2.75, −1.17]) and its genus interval falls
+  under the 0.90 gate before quantization. See below.
 
 ## The shipped artifact, measured: genus 0.918, and it clears 0.90 by 0.15pp
 
@@ -330,6 +330,54 @@ the original 64-image spot check, so the bulk path did not diverge from
 
 **What the product actually is, on the artifact that ships:** ~50% of captures
 answered at ~94% precision, with genus right 92% of the time on catalogue plants.
+
+## `bioclip_inat` is eliminated — breadth beats distribution match
+
+The cheapest of the four options for closing the encoder gap: a ViT-B/16 trained
+on **iNaturalist only**, same architecture, same 86.2M image tower, same
+preprocessing, same ~46 MB at int4 as BioCLIP v1. A true drop-in.
+
+It was also the candidate most likely to be flattered by contamination — the
+evaluation set *is* iNaturalist, so an iNat-only encoder has the tightest
+possible match to it. The PlantNet catalogue test split was scored alongside as a
+control: a different corpus, held out from head fitting, and not what
+`bioclip_inat` was trained on.
+
+| encoder | iNat genus | 95% CI | iNat species | PlantNet genus | PlantNet species | regional AUROC | coverage |
+|---|---|---|---|---|---|---|---|
+| BioCLIP-2 (cannot ship) | 0.9747 | [0.9653, 0.9827] | 0.8460 | 0.9560 | 0.7644 | 0.9791 | 0.722 |
+| **BioCLIP v1** | **0.9310** | [0.9163, 0.9440] | **0.7604** | **0.9246** | **0.7303** | **0.9012** | **0.531** |
+| BioCLIP-inat | 0.9115 | [0.8962, 0.9250] | 0.7438 | 0.9084 | 0.7152 | 0.8887 | 0.515 |
+
+Paired over species clusters, against BioCLIP v1 on iNat:
+**genus −1.95pp, CI [−2.75, −1.17]**; **species −1.66pp, CI [−3.07, −0.26]**.
+Both intervals exclude zero.
+
+**It loses on both corpora**, so the control did its job in the opposite
+direction to the one anticipated — there is no contamination caveat to apply,
+because contamination cannot explain a *loss* on the corpus it would inflate.
+The result is clean.
+
+Note also that its genus interval runs down to **0.8962 — under the 0.90 gate
+before quantization is even applied**, so it could not ship regardless.
+
+**The interesting part is why.** BioCLIP v1 is trained on TreeOfLife-10M, which
+spans ~450k taxa across all of life; BioCLIP-inat sees only iNaturalist. Same
+size, same shape, and the broadly-trained one wins *on iNaturalist's own data*.
+This extends the finding that opened this document — biological pretraining beats
+scale — with a second axis: **breadth of biological pretraining beats matching
+the deployment distribution.** Narrowing the pretraining corpus to the target
+domain cost accuracy rather than buying it.
+
+### Where the encoder decision now stands
+
+| option | status |
+|---|---|
+| ~~`bioclip_inat`~~ | **eliminated** — worse on both corpora, fails the gate outright |
+| accept ~50% coverage on BioCLIP v1 int4 | measured and viable: genus 0.918, precision 0.939 |
+| raise the 50 MB budget for BioCLIP-2 | ~164 MB at int4; the only option that keeps 72% coverage |
+| distil BioCLIP-2 into a ViT-B | still open, still weeks of work |
+| MobileCLIP2-S2 (17.9 MB) | untested, smaller and weaker — only if the budget *tightens* |
 
 ## Still to do for a shippable model
 
