@@ -43,6 +43,35 @@ rule, not the catalogue, not the fusion. The gap between 0.785 and 0.656 is the
 whole distance between "competitive with the best free option" and "clearly
 worse than two of them".
 
+### Two categories, and only one of them is ours
+
+The table above mixes systems that answer a different question. Split by whether
+a network connection is required:
+
+| | system | species top-1 | offline? |
+|---|---|---|---|
+| **server-side** | iNaturalist (108k taxa) | 0.7871 | ✗ |
+| | Pl@ntNet (~50k) | 0.7398 | ✗ |
+| **on-device** | **ours — BioCLIP-2, if the size budget rises** | **0.7849** | ✓ |
+| | ours — Core ML int4, ships today | 0.6559 | ✓ |
+| | iNaturalist Seek | ~0.66 on easier data, 2020 | ✓ |
+
+**In the offline category the field is two systems: Seek and us.** Every number
+that made this project look uncompetitive came from comparing it against
+server-side services with unlimited compute and a permanent connection.
+
+And the position within that category is strong. Our BioCLIP-2 configuration
+scores **0.7849 — statistically tied with iNaturalist's *server* model** — which
+would make the product claim *server-grade accuracy, offline*. Bridged through
+Pl@ntNet as a common reference, Seek sits ~12pp further back (see below), and
+what ships today at 0.6559 is already plausibly ahead of it.
+
+That reframes the whole decision. It is not "can we beat Pl@ntNet" — we cannot,
+with what ships. It is **"can BioCLIP-2 run on a phone", because if it can, the
+offline category has a new best member by a wide margin.** That is a question
+about app size and Core ML conversion, both answerable in an afternoon with the
+pipeline already built.
+
 ### One caveat that runs in our favour
 
 Our evaluation set is **iNaturalist research-grade observations, which is exactly

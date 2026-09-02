@@ -322,12 +322,13 @@ determines what you need to store.
 - **Frozen features may plateau** below the target. Fallback is parameter-
   efficient fine-tuning (LoRA / attentive probing) on a small backbone, which
   is feasible on MPS — not full fine-tuning.
-- **We lose to Pl@ntNet at naming plants.** Measured on identical photographs:
-  their species top-1 is 0.740 against our deployable 0.656, a significant
-  −8.4pp, while they choose from 100x more species
-  ([`COMPETITIVE_FINDINGS.md`](COMPETITIVE_FINDINGS.md)). What survives is
-  abstention — 1 wrong answer per 100 captures against their 26 — so the product
-  is only defensible where being wrong is expensive, not for general curiosity.
+- **What ships loses to both server-side incumbents at naming plants.** On
+  identical photographs: iNaturalist 0.787, Pl@ntNet 0.740, our deployable
+  0.656 ([`COMPETITIVE_FINDINGS.md`](COMPETITIVE_FINDINGS.md)). But both of those
+  require a network connection. **In the offline category the field is Seek and
+  us**, and our BioCLIP-2 configuration ties iNaturalist's *server* model at
+  0.785 — it just needs the 50 MB budget raised to ~164 MB. Whether BioCLIP-2
+  converts and runs on the ANE is now the single highest-value open question.
 - **iOS Visual Look Up already identifies plants.** The differentiators must be
   accuracy at regional depth, guided multi-organ capture, offline operation,
   and calibrated abstention. Worth benchmarking against directly.
