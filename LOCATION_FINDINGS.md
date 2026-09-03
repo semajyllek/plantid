@@ -202,6 +202,33 @@ pay for a 490-species regional catalogue"* — not *"location does not pay"*. An
 expansion toward a global or much larger catalogue should re-open this, and
 should expect the finding to reverse rather than replicate.
 
+### Confirmed on identical images, not by comparing two studies
+
+The argument above bridged our measurement to iNaturalist's published +12pp,
+which is two different systems on two different corpora. Their API takes optional
+coordinates, so it can be run both ways over **our** photographs — same images,
+same model, location the only difference.
+
+464 observations, one per species:
+
+| iNaturalist's 108,124-taxa model | species top-1 |
+|---|---|
+| vision only | 0.7866 |
+| **+ geomodel** | **0.8319** |
+| **worth** | **+0.0453, 95% CI [+0.0259, +0.0668]** ✓ |
+
+**Location is worth +4.5pp to a 108k-taxa model on the same photographs where it
+is worth ~0 to our 490-class one.** The scaling claim is now measured on common
+data rather than inferred across studies, and the mechanism is visible in how few
+decisions it touches: it changed 25 of 464 answers, fixing 23 and breaking 2.
+A prior that only moves 5% of cases can still be worth 4.5pp when the label space
+is large enough that those cases were hopeless without it.
+
+(Their +4.5pp here is below the +12pp they publish, consistent with our
+evaluation set being globally sampled rather than the regional mix their figure
+comes from — a geographic prior is worth less when the candidates are already
+spread across the planet.)
+
 ## Known limitations
 
 - **Prevalence is not modelled.** Every species is capped at 200 sampled points,

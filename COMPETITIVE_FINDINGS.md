@@ -52,9 +52,14 @@ a network connection is required:
 |---|---|---|---|
 | **server-side** | iNaturalist (108k taxa) | 0.7871 | ✗ |
 | | Pl@ntNet (~50k) | 0.7398 | ✗ |
-| **on-device** | **ours — BioCLIP-2, if the size budget rises** | **0.7849** | ✓ |
-| | ours — Core ML int4, ships today | 0.6559 | ✓ |
+| **on-device** | ours — BioCLIP-2 fp32 *(not deployable)* | 0.7849 | ✓ |
+| | **ours — BioCLIP-2 Core ML int4, 160 MB** | **0.7720** | ✓ |
+| | ours — BioCLIP v1 int4, 46 MB | 0.6559 | ✓ |
 | | iNaturalist Seek | ~0.66 on easier data, 2020 | ✓ |
+
+The 160 MB artifact is real and measured, not a projection: **0.7720 against
+iNaturalist's server model at 0.7871, a paired −0.015 with CI [−0.060, +0.030]
+— statistically tied.** Genus 0.9735 against their 0.9140.
 
 **In the offline category the field is two systems: Seek and us.** Every number
 that made this project look uncompetitive came from comparing it against

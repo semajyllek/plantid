@@ -526,13 +526,44 @@ per-grouped-channel dequantization fault rather than anything about our export.
 It also removes the tempting 25 ms GPU figure from consideration — that number is
 fast and meaningless. **`computeUnits` must exclude the GPU.**
 
-### What is not yet measured
+### Measured: int4 costs BioCLIP-2 almost nothing
 
-Cosine 0.982 suggests int4 costs BioCLIP-2 very little accuracy, but this project
-has twice shown cosine does not predict accuracy in either direction. Confirming
-it means embedding all 82k images through the Core ML model and re-running the
-evaluation: ~1.6 hours on CPU, ~2.8 on the ANE. Worth doing before any decision
-to ship, and not before.
+82,166 images embedded through the Core ML artifact on the Neural Engine, heads
+refitted on those embeddings, full evaluation re-run.
+
+| | genus | 95% CI | species | precision @20% | coverage |
+|---|---|---|---|---|---|
+| BioCLIP-2 fp32 *(cannot ship)* | 0.9747 | [0.965, 0.983] | 0.8460 | 0.956 | 0.722 |
+| **BioCLIP-2 Core ML int4, 160 MB** | **0.9735** | **[0.964, 0.982]** | **0.8370** | 0.956 | 0.692 |
+| BioCLIP v1 Core ML int4, 46 MB | 0.9179 | [0.902, 0.932] | 0.7517 | 0.939 | 0.499 |
+
+Paired, fp32 − int4: **genus +0.0012, CI [−0.0018, +0.0044]** — indistinguishable
+from zero. Species +0.0090, CI [+0.0025, +0.0164], a real but tiny loss.
+
+**Quantizing BioCLIP-2 to 160 MB costs 0.1pp of genus accuracy and 0.9pp of
+species.** Against BioCLIP v1's int4 cost of 1.3pp genus, the larger model is not
+merely tolerable under compression — it is *more* robust to it, which the cosine
+figures had already suggested (0.982 vs 0.932).
+
+The deployable comparison is now stark: **+5.6pp genus, +8.5pp species, and
++19pp of coverage for 114 MB of app size.**
+
+### And this is the one time cosine was right
+
+Recorded because the pattern matters. Cosine to a reference embedding has now
+been checked against accuracy three times:
+
+| | cosine | predicted | actual |
+|---|---|---|---|
+| BioCLIP v1 int4 | 0.932 | large loss? | −1.3pp genus |
+| distilled student | 0.956 | large gain? | **nothing** |
+| **BioCLIP-2 int4** | **0.982** | small loss | **−0.1pp genus** ✓ |
+
+It under-predicted once, wildly over-predicted once, and was right once. The
+usable rule is not "cosine is meaningless" but **"cosine bounds how much *could*
+have changed, and says nothing about whether what changed mattered."** 0.982 left
+little room for damage, so it was informative here; 0.956 left plenty of room for
+the *wrong* things to differ, so it was not.
 
 ## Still to do for a shippable model
 
