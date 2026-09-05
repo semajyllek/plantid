@@ -128,7 +128,7 @@ in `DATA_STRATEGY.md` — are still the open gap.
 2. **It is not viable on a small encoder.** The size question and the safety
    question have opposite answers, and safety wins where they conflict.
 3. **Any card for a catalogue containing dangerous species must report the union
-   rate**, not just per-pair confusions. This is a change to `plantid/tool/card.py`,
-   not a documentation note.
+   rate**, not just per-pair confusions. Implemented in narrowcast's card as a
+   gate against a bar fixed in advance, not as a documentation note.
 4. Reproduce with:
    `PYTHONPATH=. .venv/bin/python analysis/safety_pairs.py bioclip2 mobileclip2_s2`

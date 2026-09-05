@@ -4,7 +4,7 @@ Written **before** any bird image was fetched or fitted.
 
 ## Why
 
-`EMBEDDED_FINDINGS.md` and `plantid/tool/` rest on one claim: **the shape of a
+`EMBEDDED_FINDINGS.md` and the narrowcast tool rest on one claim: **the shape of a
 label set decides how a model fails, and the standard metrics hide it.** A
 genus-crowded catalogue buys coverage with genus answers that narrow nothing, so
 it scores *better* on coverage and precision while being the worse model.
