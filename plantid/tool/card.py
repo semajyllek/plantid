@@ -27,6 +27,64 @@ def _ci(metrics, key):
     return "—" if not iv else f"{100 * iv[0]:.1f}–{100 * iv[1]:.1f}%"
 
 
+HAZARD_BAR = 0.01   # declared, not tuned: see OREGON_SAFETY_FINDINGS.md
+
+
+def _hazard_section(hz: dict) -> list:
+    """The union rate, reported as a gate rather than a statistic.
+
+    Per-confusion rates are individually reassuring and collectively misleading:
+    on Oregon's lethal plants no single pair exceeded 2.5% while the union hit
+    6.7%, because wrong answers scatter across many harmless-looking labels. So
+    this section leads with the union and states a pass/fail against a bar fixed
+    in advance.
+    """
+    if not hz:
+        return []
+    worst = max(v["named_non_hazard"] for v in hz.values())
+    fails = [k for k, v in hz.items() if v["named_non_hazard"] > HAZARD_BAR]
+
+    L = ["## Consequential labels", ""]
+    if fails:
+        L += [f"> ### ⚠ Do not rely on this model for {len(fails)} of "
+              f"{len(hz)} consequential labels",
+              f">",
+              f"> The worst case is **{_pct(worst)}** — this model gives a "
+              f"consequential thing a harmless name that often. The bar set in "
+              f"advance is {_pct(HAZARD_BAR)}.",
+              f">",
+              f"> Reducing coverage is what fixes this: the same model measured "
+              f"at lower coverage answers less and is wrong less. Rebuild with a "
+              f"higher `--ood-rate`, or treat these labels as always-decline.", ""]
+    else:
+        L += [f"All {len(hz)} consequential labels are under the "
+              f"{_pct(HAZARD_BAR)} bar; worst case {_pct(worst)}.", ""]
+
+    L += ["The number that matters is **named as something harmless** — the union "
+          "over every wrong answer, not any single confusion. A genus-level answer "
+          "counts if the group it names contains nothing consequential: \"it is a "
+          "*Lomatium*\" for poison hemlock is as actionable as a wrong species. "
+          "Being named as another consequential label is wrong but not dangerous, "
+          "so it is counted separately.", "",
+          "| label | n | correct | declined | named as another consequential label | "
+          "**named as something harmless** | 95% CI |",
+          "|---|---|---|---|---|---|---|"]
+    for k, v in sorted(hz.items(), key=lambda kv: -kv[1]["named_non_hazard"]):
+        ci = v.get("ci")
+        cis = "—" if not ci else f"{100*ci[0]:.1f}–{100*ci[1]:.1f}%"
+        mark = " ⚠" if v["named_non_hazard"] > HAZARD_BAR else ""
+        L.append(f"| **{k}** | {v['n']} | {_pct(v['named_correctly'])} | "
+                 f"{_pct(v['declined'])} | {_pct(v['named_other_hazard'])} | "
+                 f"**{_pct(v['named_non_hazard'])}**{mark} | {cis} |")
+    L.append("")
+    if any(not v.get("ci") for v in hz.values()):
+        L += ["_No interval where the data offers no grouping inside a single "
+              "label — these images are not grouped by individual plant, and a "
+              "row-level interval would treat several photographs of one plant as "
+              "independent. Sources carrying observation ids do get intervals._", ""]
+    return L
+
+
 def render(manifest: dict) -> str:
     m = manifest["metrics"]
     comp = manifest["composition"]
@@ -75,6 +133,8 @@ def render(manifest: dict) -> str:
             f"healthy here *because* of those genus answers, not despite them.",
             "",
         ]
+
+    L += _hazard_section(m.get("hazard") or {})
 
     L += ["## Where it declines and where it errs", "", "| bucket | n | answered | correct when answered |",
           "|---|---|---|---|"]

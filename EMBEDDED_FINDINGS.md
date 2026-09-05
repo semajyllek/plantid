@@ -200,6 +200,35 @@ the bucket *weights* change, not the thresholds.
 So the 0.41 / 0.31 species rates are the fitted operating point for this utility
 function on this kind of catalogue, not a property of the encoders.
 
+## The frontier is optimistic for small encoders on real field photographs
+
+Every number above is measured on the PlantNet-derived catalogue. Repeating the
+K=20 easy cell on **iNaturalist photographs of 20 common, family-diverse Oregon
+plants** — 4,251 images, 2,964 observations, split by observation — gives a very
+different answer:
+
+| encoder | PlantNet catalogue, K=20 easy | 20 common Oregon plants, iNat | change |
+|---|---|---|---|
+| BioCLIP-2 | 0.9790 | **0.9769** | −0.2pp |
+| MobileCLIP2-S2 | 0.9493 | **0.8557** | **−9.4pp** |
+| gap | 3.0pp | **12.1pp** | 4x |
+
+**BioCLIP-2 transfers to real field photography and MobileCLIP2-S2 does not.**
+PlantNet images are curated and plant-centred; iNaturalist observations are what
+people actually take — variable framing, habitat context, whole-plant shots, bark.
+The weaker encoder loses most of its catalogue-measured performance to that shift
+while the stronger one loses none of it.
+
+So the size/accuracy frontier above should be read as **an upper bound for the
+small encoders specifically**. It is not wrong — it is measured on the data it
+names — but it does not survive a change of image source, and a user's photographs
+resemble iNaturalist far more than they resemble PlantNet.
+
+Part of BioCLIP-2's stability here is that iNaturalist is in its training data via
+GBIF, so this overstates its robustness too. The practical conclusion is
+unaffected: at 20 species on realistic photographs, 17.9 MB buys 0.856 and 152 MB
+buys 0.977.
+
 ## Not yet measured
 
 - **Fine-tuning.** Everything here is frozen. The frontier may make it

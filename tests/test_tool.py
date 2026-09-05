@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from plantid.tool import build, card, encoders, plan, projection, species
@@ -220,6 +221,74 @@ def test_ci_tracks_the_weighted_ratio_not_the_unweighted_mean():
     point = (correct * w).sum() / w.sum()
     assert lo <= point <= hi
     assert hi > 0.5   # nowhere near the 0.33 unweighted mean
+
+
+# ---- consequential labels (the union rate) --------------------------------
+
+def _haz_frame(pred_species, pred_genus, truth):
+    return pd.DataFrame({"pred_species": pred_species, "pred_genus": pred_genus,
+                         "truth": truth, "species": truth})
+
+
+def test_union_counts_every_harmless_name_not_just_one_confusion():
+    """The Oregon finding: no single pair exceeded 2.5% while the union hit 6.7%."""
+    truth = ["Conium maculatum"] * 4
+    pred = ["Daucus carota", "Anthriscus caucalis", "Foeniculum vulgare", "Conium maculatum"]
+    te = _haz_frame(pred, [p.split()[0] for p in pred], truth)
+    lv = np.array([build.SPECIES] * 4)
+    h = build.hazard_metrics(te, lv, {"Conium maculatum"})["Conium maculatum"]
+    assert h["named_non_hazard"] == pytest.approx(0.75)   # 3 different harmless names
+    assert h["named_correctly"] == pytest.approx(0.25)
+
+
+def test_being_named_another_hazard_is_not_counted_as_dangerous():
+    truth = ["Conium maculatum"] * 2
+    pred = ["Cicuta douglasii", "Daucus carota"]
+    te = _haz_frame(pred, [p.split()[0] for p in pred], truth)
+    lv = np.array([build.SPECIES] * 2)
+    h = build.hazard_metrics(te, lv, {"Conium maculatum", "Cicuta douglasii"})["Conium maculatum"]
+    assert h["named_other_hazard"] == pytest.approx(0.5)
+    assert h["named_non_hazard"] == pytest.approx(0.5)
+
+
+def test_a_genus_answer_naming_a_harmless_group_is_dangerous():
+    """'It is a Lomatium' for poison hemlock is as actionable as a wrong species."""
+    te = _haz_frame(["x", "x"], ["Lomatium", "Conium"], ["Conium maculatum"] * 2)
+    lv = np.array([build.GENUS, build.GENUS])
+    h = build.hazard_metrics(te, lv, {"Conium maculatum"})["Conium maculatum"]
+    assert h["named_non_hazard"] == pytest.approx(0.5)     # the Lomatium answer
+    assert h["named_other_hazard"] == pytest.approx(0.5)   # its own genus: safe
+
+
+def test_declining_is_never_counted_as_dangerous():
+    te = _haz_frame(["Daucus carota"], ["Daucus"], ["Conium maculatum"])
+    lv = np.array([build.DECLINE])
+    h = build.hazard_metrics(te, lv, {"Conium maculatum"})["Conium maculatum"]
+    assert h["named_non_hazard"] == 0.0 and h["declined"] == 1.0
+
+
+def test_no_hazards_declared_yields_no_section():
+    assert build.hazard_metrics(_haz_frame(["a"], ["a"], ["b"]), np.array([build.SPECIES]), None) == {}
+    assert "Consequential labels" not in card.render(_manifest(0.85))
+
+
+def test_card_gate_fires_above_the_declared_bar():
+    m = _manifest(0.85)
+    m["metrics"]["hazard"] = {"Conium maculatum": {
+        "n": 40, "declined": 0.10, "named_correctly": 0.83,
+        "named_other_hazard": 0.0, "named_non_hazard": 0.067, "ci": [0.017, 0.128]}}
+    out = card.render(m)
+    assert "Do not rely on this model" in out and "6.7%" in out
+
+
+def test_card_gate_passes_below_the_bar():
+    m = _manifest(0.85)
+    m["metrics"]["hazard"] = {"Conium maculatum": {
+        "n": 40, "declined": 0.25, "named_correctly": 0.99,
+        "named_other_hazard": 0.0, "named_non_hazard": 0.008, "ci": None}}
+    out = card.render(m)
+    assert "Do not rely on this model" not in out
+    assert "under the 1.0% bar" in out
 
 
 # ---- bundle round trip ----------------------------------------------------

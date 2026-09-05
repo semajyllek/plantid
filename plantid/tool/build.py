@@ -157,6 +157,9 @@ def score_frame(clf, ds: Dataset) -> pd.DataFrame:
         "genus_conf": gscore.max(1),
         "species_ok": sp_pred == ds.truth,
         "genus_ok": gn_pred == true_genus,
+        "pred_species": sp_pred,
+        "pred_genus": gn_pred,
+        "truth": ds.truth,
         "in_catalog": ds.bucket == "in_catalog",
         "bucket": ds.bucket,
         # Clustering identity, not the label: `make_splits` and the bootstrap
@@ -194,7 +197,65 @@ def _ci(numer, denom, clusters, n=2000, seed=0):
     return [float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))]
 
 
-def fit_and_measure(df: pd.DataFrame, p_ood: float, seed: int = 0) -> dict:
+def hazard_metrics(te, lv, hazards, seed=0) -> dict:
+    """For each consequential label: how often is it given a *non*-consequential name?
+
+    This is the union over every wrong answer, and it is not optional. Measured on
+    Oregon's lethal plants (`OREGON_SAFETY_FINDINGS.md`), no single confusion
+    exceeded 2.5% while the union reached **6.7%** -- because the errors scatter
+    across many different harmless-looking labels. A per-pair report passes a
+    model that a union report fails.
+
+    Being named as *another* consequential label is a wrong answer but not a
+    dangerous one: the user still does not eat it. Those are counted separately
+    rather than folded in.
+
+    **Genus answers count.** A coarse answer naming a group that contains no
+    consequential label is just as actionable as a wrong species name -- "it is a
+    Lomatium" for poison hemlock is precisely the error that kills foragers. Only
+    declining, or answering with the hazard's own group, is safe.
+    """
+    if not hazards:
+        return {}
+    hz = set(hazards)
+    hz_genera = {h.split()[0] for h in hz}
+    truth = te["truth"].to_numpy()
+    pred = te["pred_species"].to_numpy()
+    pgen = te["pred_genus"].to_numpy()
+    named = lv == SPECIES
+    genus_only = (lv != SPECIES) & (lv != DECLINE)
+    out = {}
+    for label in sorted(hz):
+        m = truth == label
+        if not m.any():
+            continue
+        # answered as something the user would treat as harmless
+        sp_safe = named[m] & (pred[m] != label) & ~np.isin(pred[m], list(hz))
+        gn_safe = genus_only[m] & ~np.isin(pgen[m], list(hz_genera))
+        wrong_safe = sp_safe | gn_safe
+        wrong_haz = (named[m] & (pred[m] != label) & np.isin(pred[m], list(hz))) | \
+                    (genus_only[m] & np.isin(pgen[m], list(hz_genera)))
+        ci = _ci(wrong_safe.astype(float), np.ones(m.sum()),
+                 te["species"].to_numpy()[m], seed=seed)
+        out[label] = {
+            "n": int(m.sum()),
+            "declined": float((lv[m] == DECLINE).mean()),
+            "named_correctly": float((named[m] & (pred[m] == label)).mean()),
+            "named_other_hazard": float(wrong_haz.mean()),
+            "named_non_hazard": float(wrong_safe.mean()),
+            "ci": ci,
+            # No interval when the catalogue offers no cluster inside one label:
+            # its images are not grouped by individual plant, so a row-level
+            # bootstrap would treat several photographs of one plant as
+            # independent -- the error CLAUDE.md's first convention exists to
+            # prevent. Sources that carry observation ids (iNaturalist) do get one.
+            "ci_unavailable_reason": None if ci else "no cluster within a single label",
+        }
+    return out
+
+
+def fit_and_measure(df: pd.DataFrame, p_ood: float, seed: int = 0,
+                    hazards=None) -> dict:
     """Fit thresholds on a clustered calibration half, report on the other."""
     fold = make_splits(df, seed=seed)
     cal, te = df[fold == "calib"], df[fold == "test"]
@@ -249,12 +310,13 @@ def fit_and_measure(df: pd.DataFrame, p_ood: float, seed: int = 0) -> dict:
         "ci": ci,
         "n_species_clusters": int(len(set(clusters[inc]))),
         "per_bucket": per_bucket,
+        "hazard": hazard_metrics(te, lv, hazards, seed=seed),
         "n_calib": int(len(cal)), "n_test": int(len(te)),
     }
 
 
 def save_bundle(out: Path, clf, chosen, encoder, metrics, composition, counts,
-                source: str) -> Path:
+                source: str, hazards=None) -> Path:
     """Head weights, thresholds, and everything needed to reproduce the claim."""
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -266,6 +328,7 @@ def save_bundle(out: Path, clf, chosen, encoder, metrics, composition, counts,
         "encoder": encoder,
         "species": chosen,
         "source": source,
+        "hazards": sorted(hazards or []),
         "counts": counts,
         "composition": {k: v for k, v in composition.items()
                         if k != "outside_congeners" and not k.startswith("_")},

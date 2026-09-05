@@ -42,6 +42,19 @@ def cmd_plan(args):
     return 0
 
 
+def _hazard_arg(args, chosen) -> list[str]:
+    """Labels the user declares consequential. The tool cannot infer these."""
+    out = list(args.hazard or [])
+    if getattr(args, "hazard_file", None):
+        out += S.read_list(args.hazard_file)
+    out = [S.canonical(h) or h for h in out]
+    unknown = sorted(set(out) - set(chosen))
+    if unknown:
+        raise ValueError(f"consequential labels not in your species list: "
+                         f"{', '.join(unknown)}")
+    return sorted(set(out))
+
+
 def cmd_build(args):
     chosen = _species_arg(args)
     comp = S.analyse(chosen)
@@ -61,12 +74,13 @@ def cmd_build(args):
           f"relatives {ds.counts['near_ood']}, unrelated {ds.counts['distant_ood']}",
           file=sys.stderr)
 
+    hazards = _hazard_arg(args, chosen)
     clf = B.fit_head(ds)
     frame = B.score_frame(clf, ds)
-    metrics = B.fit_and_measure(frame, p_ood=args.ood_rate)
+    metrics = B.fit_and_measure(frame, p_ood=args.ood_rate, hazards=hazards)
 
     out = B.save_bundle(Path(args.out), clf, chosen, enc.variant, metrics, comp,
-                        ds.counts, source="local-catalogue")
+                        ds.counts, source="local-catalogue", hazards=hazards)
     card_path = C.write(out)
     print(f"\nbundle {out}\ncard   {card_path}", file=sys.stderr)
     print(f"\n  coverage {100*metrics['coverage']:.1f}%  "
@@ -96,6 +110,11 @@ def main(argv=None):
                        help="assumed share of queries not on your list (default 0.2)")
         if out:
             p.add_argument("--out", required=True, help="bundle directory to write")
+            p.add_argument("--hazard", action="append", metavar="LABEL",
+                           help="a label where being mistaken for a harmless one "
+                                "is the costly error; repeatable")
+            p.add_argument("--hazard-file", metavar="FILE",
+                           help="file of such labels, one per line")
 
     p_plan = sub.add_parser("plan", help="what this species list will give you")
     common(p_plan)
