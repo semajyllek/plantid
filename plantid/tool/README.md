@@ -92,8 +92,11 @@ encoders matter below ~20 MB — Coral, microcontrollers, cheap drone payloads.
 - **Narrowing does not fix a confusable list.** Going 50 → 10 species buys ~4pp
   on a congener-dense set. The tool warns; it cannot solve.
 - **The reference pool is a floor.** Relatives are checked against the local
-  530-species catalogue, so a genus whose relatives it never included will look
-  safer than it is.
+  catalogue's 499 binomials, so a genus whose relatives it never included will
+  look safer than it is. Widening it needs only a taxonomy, not images —
+  `data/resolve_taxa.py` already resolves names against iNaturalist (475 of 497),
+  but it is fuzzy matching rather than a GBIF/POWO backbone, which is what a pool
+  of thousands would need.
 - **The data source is local.** `build` reads the catalogue embedding caches.
   Fetching arbitrary species from iNaturalist is not wired up yet, so a list is
   currently limited to species the catalogue covers.

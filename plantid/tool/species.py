@@ -16,7 +16,10 @@ aggregate.
 The reference pool for "what else is in this genus" is the local catalogue.
 That is a floor, not a census: it holds 530 labels collapsing to 499 binomials
 over 172 genera, so a genus whose relatives it never included will look safer
-than it is. Widening the pool needs a taxonomy source that is not wired up yet.
+than it is. Widening it needs only a taxonomy, not images -- but note that at a
+pool of thousands this check inverts: nearly every species would have relatives
+outside the set, and "shares a genus" stops carrying information. The warning
+would need to rank by embedding distance instead.
 """
 
 import json
