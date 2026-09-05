@@ -139,23 +139,56 @@ three-way cascade from `eval/rejection.py` — thresholds by expected-utility
 maximisation on a calibration split, `UTILITY` as declared, prevalence anchored
 by `deployment_weights` — gives the deployable numbers. K=20, 12 draws.
 
+> ### ⚠️ Corrected — the first version of this table was fitted without negatives
+>
+> ~~The table below originally read 0.820/0.963/0.849 for EASY BioCLIP-2 at
+> p_ood=0.2.~~ Background rows carried `__OTHER__` as their *clustering*
+> identity, so `make_splits` saw a single cluster for `distant_ood` and put
+> **every** distant negative in test. Calibration — where the thresholds are
+> fitted — contained no distant negatives at all, so the fit had nothing to
+> learn to decline from and thresholds came out too permissive.
+>
+> Found while building `analysis/headroom_arms.py` on top of this script
+> (`HEADROOM_FINDINGS.md`), not by looking for it. `eval/rejection.py` is
+> **unaffected** — its OOD rows are real observations carrying real binomials —
+> so every headline number in `CLAUDE.md` stands. The blast radius is this one
+> table.
+>
+> **The qualitative finding survives its own correction, and strengthens.** The
+> coverage gap the section is about widens from +5.2pp to +7.6pp, and the
+> species-level collapse deepens from 43.7pp to 47.6pp. Numbers below are the
+> corrected ones; the retracted table is kept beneath them.
+
 **coverage / precision / species-level share of in-catalogue answers**
 
 | arm | encoder | p_ood=0.5 | **p_ood=0.2** | p_ood=0.1 |
 |---|---|---|---|---|
-| EASY | BioCLIP-2 | 0.528/0.937/0.649 | **0.820/0.963/0.849** | 0.908/0.971/0.928 |
-| EASY | S2 | 0.497/0.901/0.484 | **0.771/0.934/0.833** | 0.862/0.951/0.891 |
-| EASY | S0 | 0.444/0.893/0.474 | **0.736/0.922/0.802** | 0.830/0.946/0.840 |
-| HARD | BioCLIP-2 | 0.686/0.857/0.412 | **0.872/0.945/0.412** | 0.933/0.967/0.412 |
-| HARD | S2 | 0.665/0.855/0.305 | **0.856/0.941/0.305** | 0.919/0.961/0.305 |
-| HARD | S0 | 0.683/0.826/0.307 | **0.856/0.929/0.307** | 0.912/0.954/0.307 |
+| EASY | BioCLIP-2 | 0.414/0.934/0.698 | **0.740/0.965/0.862** | 0.859/0.976/0.908 |
+| EASY | S2 | 0.293/0.910/0.473 | **0.670/0.952/0.775** | 0.788/0.968/0.829 |
+| EASY | S0 | 0.281/0.905/0.447 | **0.603/0.956/0.690** | 0.758/0.963/0.795 |
+| HARD | BioCLIP-2 | 0.564/0.923/0.382 | **0.816/0.969/0.386** | 0.901/0.980/0.386 |
+| HARD | S2 | 0.513/0.900/0.333 | **0.772/0.945/0.346** | 0.873/0.959/0.338 |
+| HARD | S0 | 0.416/0.930/0.243 | **0.726/0.955/0.273** | 0.833/0.963/0.281 |
 
-At the project's standing 20% anchor, a 20-species catalogue answers **82% of
-queries at 96.3% precision**, with 85% of in-catalogue answers at species level.
-MobileCLIP2-S2 at 17.9 MB gives 0.771/0.934, about 5pp of coverage and 3pp of
-precision behind a model 8.5x its size.
+<details><summary>Retracted table (thresholds fitted without distant negatives)</summary>
 
-> Do **not** read 0.820 against the 0.722 coverage in `CLAUDE.md`. That figure is
+| arm | encoder | p_ood=0.5 | **p_ood=0.2** | p_ood=0.1 |
+|---|---|---|---|---|
+| EASY | BioCLIP-2 | ~~0.528/0.937/0.649~~ | ~~**0.820/0.963/0.849**~~ | ~~0.908/0.971/0.928~~ |
+| EASY | S2 | ~~0.497/0.901/0.484~~ | ~~**0.771/0.934/0.833**~~ | ~~0.862/0.951/0.891~~ |
+| EASY | S0 | ~~0.444/0.893/0.474~~ | ~~**0.736/0.922/0.802**~~ | ~~0.830/0.946/0.840~~ |
+| HARD | BioCLIP-2 | ~~0.686/0.857/0.412~~ | ~~**0.872/0.945/0.412**~~ | ~~0.933/0.967/0.412~~ |
+| HARD | S2 | ~~0.665/0.855/0.305~~ | ~~**0.856/0.941/0.305**~~ | ~~0.919/0.961/0.305~~ |
+| HARD | S0 | ~~0.683/0.826/0.307~~ | ~~**0.856/0.929/0.307**~~ | ~~0.912/0.954/0.307~~ |
+
+</details>
+
+At the project's standing 20% anchor, a 20-species catalogue answers **74% of
+queries at 96.5% precision**, with 86% of in-catalogue answers at species level.
+MobileCLIP2-S2 at 17.9 MB gives 0.670/0.952, about 7pp of coverage behind a model
+8.5x its size at comparable precision.
+
+> Do **not** read 0.740 against the 0.722 coverage in `CLAUDE.md`. That figure is
 > measured on 5,534 iNaturalist observations with bark included and
 > near/distant/regional OOD buckets; this one is catalogue test rows, leaf and
 > flower only, with near-OOD defined as same-genus catalogue species. Same metric
@@ -163,9 +196,9 @@ precision behind a model 8.5x its size.
 
 ### The HARD arm's good numbers are an artifact — read the third column
 
-On the congener arm coverage looks *better* (0.872 vs 0.820) and precision is
+On the congener arm coverage looks *better* (0.816 vs 0.740) and precision is
 comparable. It is not a better deployment. The species-level share collapses to
-**0.41 for BioCLIP-2 and 0.31 for both small encoders**: the cascade is buying
+**0.39 for BioCLIP-2 and 0.27–0.35 for the small encoders**: the cascade is buying
 coverage with genus answers, and on a catalogue where every species is a *Sedum*,
 "it is a Sedum" carries no information. `UTILITY` scores a genus answer at 0.5
 regardless of how much the genus narrows the field, so the fit takes that trade
@@ -177,18 +210,25 @@ by answering vacuously. **Any report to a user must carry the species-level
 share, or a congener-dense set will look like the best case rather than the
 worst.**
 
-Note also that on the HARD arm the encoder gap nearly vanishes (S0 0.856/0.929
+~~Note also that on the HARD arm the encoder gap nearly vanishes (S0 0.856/0.929
 vs BioCLIP-2 0.872/0.945) — but only because both are falling back to the same
-vacuous genus answer. The 6.8pp closed-set gap is real and is being hidden.
+vacuous genus answer.~~ **Retracted by the correction above.** With thresholds
+fitted against distant negatives the gap does *not* vanish: S0 scores 0.726/0.955
+against BioCLIP-2's 0.816/0.969, a 9.0pp coverage gap. The vacuous-genus effect
+is still visible in the third column — species-level 0.273 against 0.386 — but it
+no longer hides the encoder gap, it *adds* to it. The 6.8pp closed-set gap is
+real and shows up in coverage after all.
 
 ### Why the HARD species rate is invariant to prevalence
 
-The species-level share is identical to three decimals across p_ood 0.5/0.2/0.1
-while coverage moves 0.686 → 0.933. That is not a grid artifact — the fitted
-thresholds are genuinely constant, and `t_species = 0.9065` is an interior
-optimum, not the top of `s_grid` (max species confidence is 0.9903). On the EASY
-arm the same fit *does* respond to prevalence (t_genus 0.8513 → 0.3973,
-t_species 0.8579 → 0.6708).
+The species-level share is nearly invariant across p_ood 0.5/0.2/0.1 —
+0.382/0.386/0.386 for BioCLIP-2 — while coverage moves 0.564 → 0.901. On the
+EASY arm the same fit *does* respond to prevalence (0.698 → 0.908).
+
+*(Before the correction above this share was identical to **three decimals**, and
+the invariance was stated as exact. With negatives in calibration it is close but
+no longer exact, which is what you would expect: the fit now has something to
+trade off against. The mechanism below is unchanged.)*
 
 The mechanism: on a congener-dense catalogue the near-OOD bucket is *by
 construction* species from genera you chose, so a genus answer is correct for
@@ -197,8 +237,8 @@ utility no matter what the out-of-catalogue rate is, `t_genus` sits near the
 floor, and declining is never worth it. Coverage still moves with p_ood because
 the bucket *weights* change, not the thresholds.
 
-So the 0.41 / 0.31 species rates are the fitted operating point for this utility
-function on this kind of catalogue, not a property of the encoders.
+So the 0.39 / 0.27–0.35 species rates are the fitted operating point for this
+utility function on this kind of catalogue, not a property of the encoders.
 
 ## The frontier is optimistic for small encoders on real field photographs
 
