@@ -64,7 +64,8 @@ def load(variant):
     for organ in ORGANS:
         d = np.load(f"{DP}/catalog_{organ}_{variant}.npz", allow_pickle=True)
         cat[organ] = (_l2(d["descriptor"]), d["species_name"].astype(str), d["split"].astype(str))
-        bg[organ] = _l2(load_background(organ, exclude_species=cs, variant=variant)["descriptor"])
+        b = load_background(organ, exclude_species=cs, variant=variant)
+        bg[organ] = (_l2(b["descriptor"]), b["species_name"].astype(str))
     return cat, bg
 
 
@@ -74,7 +75,7 @@ def one_draw(cat, bg, species, rng):
     keep_genera = {s.split()[0] for s in keep}
 
     Xtr, ytr = [], []
-    rows = []  # (X, true_species, bucket)
+    rows = []  # (X, true_species, cluster, bucket)
     for organ in ORGANS:
         E, names, split = cat[organ]
         m = np.array([n in keep for n in names])
@@ -82,18 +83,23 @@ def one_draw(cat, bg, species, rng):
         Xtr.append(E[tr]); ytr.append(names[tr])
 
         te = m & (split == "test")
-        rows.append((E[te], names[te], "in_catalog"))
+        rows.append((E[te], names[te], names[te], "in_catalog"))
 
         out = (~m) & (split == "test")
         og = np.array([n.split()[0] in keep_genera for n in names])
-        rows.append((E[out & og], names[out & og], "near_ood"))
+        rows.append((E[out & og], names[out & og], names[out & og], "near_ood"))
 
-        B = bg[organ]
+        B, BN = bg[organ]
         cut = rng.permutation(len(B))
         n = int(BG_TRAIN_FRAC * len(B))
         Xtr.append(B[cut[:n]]); ytr.append(np.full(n, OTHER))
-        far = B[cut[n:]]
-        rows.append((far, np.full(len(far), OTHER), "distant_ood"))
+        far, far_names = B[cut[n:]], BN[cut[n:]]
+        # Background rows score as __OTHER__ but must *cluster* on their real
+        # species. Labelling the cluster __OTHER__ gave `make_splits` a single
+        # cluster for distant_ood, so every negative landed in test and
+        # calibration -- where the thresholds are fitted -- contained no distant
+        # negatives at all. See EMBEDDED_FINDINGS.md for the numbers this moved.
+        rows.append((far, np.full(len(far), OTHER), far_names, "distant_ood"))
 
     clf = LogisticRegression(max_iter=3000, C=10.0, class_weight="balanced").fit(
         np.vstack(Xtr), np.concatenate(ytr)
@@ -105,7 +111,8 @@ def one_draw(cat, bg, species, rng):
 
     X = np.vstack([r[0] for r in rows])
     truth = np.concatenate([r[1] for r in rows])
-    bucket = np.concatenate([[r[2]] * len(r[0]) for r in rows])
+    cluster = np.concatenate([r[2] for r in rows])
+    bucket = np.concatenate([[r[3]] * len(r[0]) for r in rows])
 
     P = clf.predict_proba(X)
     cataP = P[:, mask]
@@ -124,8 +131,9 @@ def one_draw(cat, bg, species, rng):
         "genus_ok": gn_pred == true_genus,
         "in_catalog": bucket == "in_catalog",
         "bucket": bucket,
-        "species": truth,
-        "genus": true_genus,
+        # Clustering identity for `make_splits`, not the scoring label.
+        "species": cluster,
+        "genus": np.array([c.split()[0] for c in cluster]),
     })
 
 

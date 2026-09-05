@@ -241,7 +241,20 @@ def measure(df, seed, ood_mix=None):
     if cal.empty or te.empty or not cal["in_catalog"].any() or not te["in_catalog"].any():
         return None
 
-    w_cal = deployment_weights(cal["bucket"].to_numpy(), p_ood=P_OOD, ood_mix=ood_mix)
+    # `deployment_weights` divides each bucket's share by the sum over the *full*
+    # mix, so a bucket that is absent leaves its share unclaimed and the whole
+    # weighting renormalises to a lower effective prevalence. Crowded arms take
+    # whole genus blocks, so almost no congener is left outside the set and
+    # near_ood often has a single cluster and lands entirely in test -- which
+    # would fit their thresholds at p_ood 0.145 and score them at 0.20, in
+    # exactly the arms whose group share carries the result. Restricting the mix
+    # per side puts both at 0.20.
+    def _mix(sub):
+        m = {b: s for b, s in ood_mix.items() if (sub["bucket"] == b).any()}
+        return m or ood_mix
+
+    near_in_calib = bool((cal["bucket"] == "near_ood").any())
+    w_cal = deployment_weights(cal["bucket"].to_numpy(), p_ood=P_OOD, ood_mix=_mix(cal))
     (tg, ts), _ = fit_thresholds(
         cal["species_conf"].to_numpy(), cal["genus_conf"].to_numpy(),
         cal["species_ok"].to_numpy(), cal["genus_ok"].to_numpy(),
@@ -252,7 +265,7 @@ def measure(df, seed, ood_mix=None):
     coarse = cal["genus_ok"].to_numpy()[ci].mean()
 
     lv = decide(te["species_conf"].to_numpy(), te["genus_conf"].to_numpy(), tg, ts)
-    w = deployment_weights(te["bucket"].to_numpy(), p_ood=P_OOD, ood_mix=ood_mix)
+    w = deployment_weights(te["bucket"].to_numpy(), p_ood=P_OOD, ood_mix=_mix(te))
     answered = lv != DECLINE
     correct = ((lv == SPECIES) & te["species_ok"].to_numpy()) | \
               ((lv == GENUS) & te["genus_ok"].to_numpy())
@@ -278,6 +291,7 @@ def measure(df, seed, ood_mix=None):
         if answered.any() else np.nan,
         w_group=float(w[lv == GENUS].sum() / w.sum()),
         n_in_catalog_test=int(inc.sum()),
+        near_in_calib=float(near_in_calib),
     )
 
 
@@ -334,50 +348,49 @@ def ood_arms():
 
     They enter the table so the published points sit on the same axes; they are
     not new corpora, and the findings doc says so.
+
+    The head is fitted through **narrowcast's own** `load_rows` / `score_frame`
+    rather than by hand. Hand-rolling it here produced two defects at once: no
+    train/eval split of the in-catalogue rows, which made every predictor
+    in-sample, and a background cluster taken from the `label` array -- uniformly
+    `__OTHER__` in `news_bg` and `birds_bg`, which collapses the distant_ood
+    split the same way the plant path did. `sources.from_embeddings` already
+    resolves clusters correctly (`cluster` key, else per-row independence) and
+    `load_rows` already splits, so the fix is to stop reimplementing them.
     """
     from pathlib import Path
+
+    from narrowcast import build as nbuild
+    from narrowcast import sources as nsources
+
     rows = []
     for domain, name, emb, bg in OOD_ARMS:
         if not (Path(emb).exists() and Path(bg).exists()):
             print(f"  skip {name}: {emb} missing", flush=True)
             continue
-        z = np.load(emb, allow_pickle=True)
-        zb = np.load(bg, allow_pickle=True)
-        lab = z["label"].astype(str)
-        gmap = (dict(zip(lab, z["group"].astype(str))) if "group" in z
-                else {l: l.split()[0] for l in lab})
-
-        X = np.vstack([_l2(z["descriptor"]), _l2(zb["descriptor"])])
-        y = np.concatenate([lab, np.full(len(zb["descriptor"]), OTHER)])
-        # Same 60/40 background train/eval convention as the plant arms.
-        rng = np.random.default_rng(0)
-        nb = len(zb["descriptor"])
-        cut = rng.permutation(nb) + len(lab)
-        keep_tr = np.concatenate([np.arange(len(lab)), cut[: int(BG_TRAIN_FRAC * nb)]])
-        clf = LogisticRegression(max_iter=3000, C=10.0,
-                                 class_weight="balanced").fit(X[keep_tr], y[keep_tr])
-        classes = np.array(clf.classes_)
-        mask = classes != OTHER
-        eval_idx = np.concatenate([np.arange(len(lab)), cut[int(BG_TRAIN_FRAC * nb):]])
-        bg_names = (zb["label"].astype(str) if "label" in zb
-                    else np.array([f"bg{i}" for i in range(nb)]))
-        cl = np.concatenate([lab, bg_names])[eval_idx]
-        arm = dict(labels=classes[mask], cata=clf.predict_proba(X[eval_idx])[:, mask],
-                   truth=y[eval_idx], cluster=cl,
-                   bucket=np.where(y[eval_idx] == OTHER, "distant_ood", "in_catalog"),
-                   species=sorted(set(lab)), centroids={})
+        ds = nbuild.load_rows(nsources.load(embeddings=emb), "precomputed",
+                              background=nsources.load(embeddings=bg), seed=0)
+        nd = nbuild.score_frame(nbuild.fit_head(ds), ds)
+        df = pd.DataFrame({
+            "species_conf": nd["label_conf"], "genus_conf": nd["group_conf"],
+            "species_ok": nd["label_ok"], "genus_ok": nd["group_ok"],
+            "in_catalog": nd["in_catalog"], "bucket": nd["bucket"],
+            "species": nd["label"], "genus": nd["group"],
+        })
+        n_groups = int(pd.Series(nd["group"][nd["in_catalog"]]).nunique())
         # These corpora have no near_ood bucket. Left at the plant OOD_MIX,
         # `deployment_weights` skips the missing 0.32 share and renormalises,
         # scoring them at an effective p_ood of 0.145 rather than 0.20 -- a
         # different operating point from every plant arm in the same table.
-        r = score(frame(arm, gmap),
-                  dict(domain=domain, encoder=name.split("-")[0], K=len(set(lab)),
-                       crowded="crowded" in name, label_set=name, set_shape=name,
-                       grouping="published", n_groups=len(set(gmap.values()))),
+        K = int(pd.Series(nd["truth"][nd["in_catalog"]]).nunique())
+        r = score(df, dict(domain=domain, encoder=name.split("-")[0], K=K,
+                           crowded="crowded" in name, label_set=name, set_shape=name,
+                           grouping="published", n_groups=n_groups),
                   ood_mix={"distant_ood": 1.0})
         if r:
             rows.append(r)
-            print(f"  {name:18s} fine={r['fine']:.3f} coarse={r['coarse']:.3f}", flush=True)
+            print(f"  {name:18s} fine={r['fine']:.3f} coarse={r['coarse']:.3f} "
+                  f"headroom={r['headroom']:+.3f}", flush=True)
     return rows
 
 
