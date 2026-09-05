@@ -43,34 +43,52 @@ _BINOMIAL = re.compile(r"^[A-Z][a-z\-]+(?:\s+[×x])?\s+[a-z\-]+")
 
 
 def canonical(name: str) -> str | None:
-    """Canonical binomial for a user-supplied name, or None if it does not parse.
-
-    Parsing is stricter than `canonical_name`, which normalises anything it is
-    given: a user's list is typed by hand, so 'not a binomial' must fail loudly
-    rather than become a class label.
-    """
+    """Canonical binomial, or None if it does not parse as one."""
     name = _COMMENT.sub("", str(name)).strip()
     if not name or not _BINOMIAL.match(name):
         return None
     return canonical_name(name)
 
 
-def read_list(path: str | Path) -> list[str]:
-    """One species per line; blank lines and `#` comments ignored.
+def normalise(name: str, binomial: bool = True) -> str | None:
+    """A usable label, or None for a blank/comment line.
 
-    Raises on unparseable lines rather than dropping them: a silently ignored
-    species is a model that quietly cannot see a plant the user asked for.
+    `binomial=True` applies the Linnaean join key, which is what plant work
+    needs. Any other domain -- defect classes, SKUs, fungi with cultivar
+    suffixes -- passes labels through untouched, because the tool has no
+    business deciding what a well-formed label looks like outside biology.
     """
-    raw = Path(path).read_text().splitlines()
+    raw = _COMMENT.sub("", str(name)).strip()
+    if not raw:
+        return None
+    # In binomial mode a label that does not parse is an error, not something to
+    # pass through: falling back to the raw string would turn a typo into a class.
+    return canonical(raw) if binomial else raw
+
+
+def read_list(path: str | Path, binomial: bool | None = None) -> list[str]:
+    """One label per line; blank lines and `#` comments ignored.
+
+    `binomial=None` auto-detects: if every line parses as `Genus species` the
+    Linnaean join key is applied, otherwise labels pass through as written. That
+    keeps plant lists normalised without rejecting a domain whose labels are not
+    Latin binomials.
+
+    With `binomial=True` an unparseable line raises rather than being dropped: a
+    silently ignored label is a model that quietly cannot see a class the user
+    asked for.
+    """
+    lines = [ln for ln in Path(path).read_text().splitlines()
+             if _COMMENT.sub("", ln).strip()]
+    if binomial is None:
+        binomial = bool(lines) and all(canonical(ln) for ln in lines)
     out, bad = [], []
-    for i, line in enumerate(raw, 1):
-        if not _COMMENT.sub("", line).strip():
-            continue
-        c = canonical(line)
+    for i, line in enumerate(lines, 1):
+        c = normalise(line, binomial=binomial)
         (out.append(c) if c else bad.append((i, line.strip())))
     if bad:
         detail = "; ".join(f"line {i}: {t!r}" for i, t in bad[:5])
-        raise ValueError(f"could not parse {len(bad)} line(s) as 'Genus species' -- {detail}")
+        raise ValueError(f"could not parse {len(bad)} line(s) -- {detail}")
     seen, uniq = set(), []
     for s in out:
         if s not in seen:

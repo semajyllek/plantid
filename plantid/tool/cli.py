@@ -12,7 +12,7 @@ from pathlib import Path
 
 from plantid.tool import build as B
 from plantid.tool import card as C
-from plantid.tool import encoders, plan as P, species as S
+from plantid.tool import encoders, plan as P, sources as SRC, species as S
 
 
 def _species_arg(args) -> list[str]:
@@ -56,20 +56,37 @@ def _hazard_arg(args, chosen) -> list[str]:
 
 
 def cmd_build(args):
-    chosen = _species_arg(args)
-    comp = S.analyse(chosen)
     enc = (encoders.BY_VARIANT[args.encoder] if args.encoder
            else encoders.choose(args.budget))
+    external = args.images or args.manifest or args.embeddings
 
-    print(f"encoder {enc.label} ({enc.size_mb():.1f} MB int4), "
-          f"{len(chosen)} species", file=sys.stderr)
-    ds = B.load_local(enc.variant, chosen)
-    missing = set(chosen) - set(ds.y_train)
-    if missing:
-        print(f"warning: no training rows for {len(missing)} species: "
-              f"{', '.join(sorted(missing)[:6])}", file=sys.stderr)
+    if external:
+        rows = SRC.load(args.images, args.manifest, args.embeddings)
+        bg = (SRC.load(args.background_images, args.background_manifest,
+                       args.background_embeddings)
+              if (args.background_images or args.background_manifest
+                  or args.background_embeddings) else None)
+        chosen = rows.labels
+        comp = S.analyse(chosen, pool=chosen)
+        print(f"encoder {enc.label}, {len(chosen)} labels, {len(rows)} rows",
+              file=sys.stderr)
+        for n in rows.notes:
+            print(f"  note: {n}", file=sys.stderr)
+        ds = B.load_rows(rows, enc.variant, background=bg)
+        source = args.images or args.manifest or args.embeddings
+    else:
+        chosen = _species_arg(args)
+        comp = S.analyse(chosen)
+        print(f"encoder {enc.label} ({enc.size_mb():.1f} MB int4), "
+              f"{len(chosen)} species", file=sys.stderr)
+        ds = B.load_local(enc.variant, chosen)
+        missing = set(chosen) - set(ds.y_train)
+        if missing:
+            print(f"warning: no training rows for {len(missing)} species: "
+                  f"{', '.join(sorted(missing)[:6])}", file=sys.stderr)
+        source = "local-catalogue"
     if ds.counts["in_catalog"] == 0:
-        raise SystemExit("no evaluation rows for any chosen species -- nothing to measure")
+        raise SystemExit("no evaluation rows -- nothing to measure")
     print(f"  train {ds.counts['train']} rows | eval in-list {ds.counts['in_catalog']}, "
           f"relatives {ds.counts['near_ood']}, unrelated {ds.counts['distant_ood']}",
           file=sys.stderr)
@@ -80,7 +97,7 @@ def cmd_build(args):
     metrics = B.fit_and_measure(frame, p_ood=args.ood_rate, hazards=hazards)
 
     out = B.save_bundle(Path(args.out), clf, chosen, enc.variant, metrics, comp,
-                        ds.counts, source="local-catalogue", hazards=hazards)
+                        ds.counts, source=str(source), hazards=hazards)
     card_path = C.write(out)
     print(f"\nbundle {out}\ncard   {card_path}", file=sys.stderr)
     print(f"\n  coverage {100*metrics['coverage']:.1f}%  "
@@ -100,7 +117,12 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(p, out=False):
-        p.add_argument("--species", help="file with one 'Genus species' per line")
+        p.add_argument("--species", help="file with one label per line")
+        p.add_argument("--images", metavar="DIR", help="DIR/<label>/*.jpg")
+        p.add_argument("--manifest", metavar="FILE",
+                       help="parquet/csv with columns label, path [, group, cluster]")
+        p.add_argument("--embeddings", metavar="FILE",
+                       help="npz with descriptor, label [, group, cluster]")
         p.add_argument("--name", action="append", help="a species; repeatable")
         p.add_argument("--budget", type=float, metavar="MB",
                        help="size budget for the encoder, in MB")
@@ -115,6 +137,10 @@ def main(argv=None):
                                 "is the costly error; repeatable")
             p.add_argument("--hazard-file", metavar="FILE",
                            help="file of such labels, one per line")
+            p.add_argument("--background-images", metavar="DIR")
+            p.add_argument("--background-manifest", metavar="FILE")
+            p.add_argument("--background-embeddings", metavar="FILE",
+                           help="negatives, so the model can learn to decline")
 
     p_plan = sub.add_parser("plan", help="what this species list will give you")
     common(p_plan)

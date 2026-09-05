@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from plantid.tool import build, card, encoders, plan, projection, species
+from plantid.tool import build, card, encoders, plan, projection, sources, species
 
 
 # ---- species list parsing -------------------------------------------------
@@ -29,12 +29,19 @@ def test_read_list_dedupes_and_keeps_order(tmp_path):
     assert species.read_list(p) == ["Sedum acre", "Trifolium repens"]
 
 
-def test_read_list_raises_rather_than_dropping(tmp_path):
+def test_read_list_raises_rather_than_dropping_when_binomial_is_declared(tmp_path):
     """A silently ignored species is a model that cannot see a plant the user asked for."""
     p = tmp_path / "s.txt"
     p.write_text("Sedum acre\nnot a binomial\n")
     with pytest.raises(ValueError, match="could not parse"):
-        species.read_list(p)
+        species.read_list(p, binomial=True)
+
+
+def test_mixed_list_falls_back_to_raw_labels_rather_than_rejecting(tmp_path):
+    """Auto-detect: only a list that is wholly binomial gets the Linnaean key."""
+    p = tmp_path / "s.txt"
+    p.write_text("Sedum acre\nnot a binomial\n")
+    assert species.read_list(p) == ["Sedum acre", "not a binomial"]
 
 
 # ---- composition ----------------------------------------------------------
@@ -320,3 +327,70 @@ def test_bundle_round_trip(tmp_path):
     assert loaded["metrics"]["coverage"] == 0.84
     assert json.loads((out / "manifest.json").read_text())["bundle_version"] == 1
     assert (out / "head.npz").exists()
+
+
+# ---- data sources: the tool takes a dataset, it does not fetch one ---------
+
+def test_images_layout_reads_labels_from_directory_names(tmp_path):
+    for label in ("Sedum acre", "weld porosity"):
+        d = tmp_path / label.replace(" ", "_")
+        d.mkdir()
+        (d / "a.jpg").write_bytes(b"x")
+    r = sources.from_images(tmp_path)
+    assert r.labels == ["Sedum acre", "weld porosity"] and len(r) == 2
+
+
+def test_manifest_requires_label_and_path(tmp_path):
+    f = tmp_path / "m.csv"
+    f.write_text("label,notpath\na,b\n")
+    with pytest.raises(ValueError, match="needs a 'path' column"):
+        sources.from_manifest(f)
+
+
+def test_missing_cluster_is_recorded_not_silently_assumed(tmp_path):
+    f = tmp_path / "m.csv"
+    f.write_text("label,path\na,/x.jpg\nb,/y.jpg\n")
+    r = sources.from_manifest(f)
+    assert r.has_clusters is False
+    assert any("treated as independent" in n for n in r.notes)
+
+
+def test_group_defaults_to_first_token_and_is_overridable(tmp_path):
+    f = tmp_path / "m.csv"
+    f.write_text("label,path,group\nSedum acre,/x.jpg,Crassulaceae\n")
+    assert list(sources.from_manifest(f).group) == ["Crassulaceae"]
+    assert sources.default_group("Sedum acre") == "Sedum"
+
+
+def test_exactly_one_source_required():
+    with pytest.raises(ValueError, match="exactly one"):
+        sources.load()
+    with pytest.raises(ValueError, match="exactly one"):
+        sources.load(images="a", manifest="b")
+
+
+# ---- projection is gated behind a measured profile -------------------------
+
+def test_projection_refuses_without_a_profile_for_the_domain():
+    """Birds licensed the warning, not the numbers."""
+    with pytest.raises(ValueError, match="projection is disabled"):
+        projection.project("bioclip2", 20, 0.2, profile="fungi-bioclip2")
+
+
+def test_default_plant_profile_still_resolves():
+    assert "plants-bioclip2" in projection.available()
+    assert projection.project("bioclip2", 20, 0.229)["profile"] == "plants-bioclip2"
+
+
+# ---- non-binomial labels are first-class ----------------------------------
+
+def test_read_list_accepts_labels_that_are_not_binomials(tmp_path):
+    f = tmp_path / "l.txt"
+    f.write_text("weld_porosity\ncrack_lateral\n# comment\n")
+    assert species.read_list(f) == ["weld_porosity", "crack_lateral"]
+
+
+def test_read_list_still_normalises_a_pure_binomial_list(tmp_path):
+    f = tmp_path / "l.txt"
+    f.write_text("Sedum acre L.\nTrifolium repens\n")
+    assert species.read_list(f) == ["Sedum acre", "Trifolium repens"]

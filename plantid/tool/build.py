@@ -134,6 +134,59 @@ def load_local(variant: str, chosen: list[str], cache_dir=DATA_PROCESSED,
                    np.concatenate(cluster))
 
 
+def load_rows(rows, encoder_variant: str, background=None, seed: int = 0) -> Dataset:
+    """Assemble a Dataset from a caller-supplied source (`tool/sources.py`).
+
+    The tool does not fetch. It is handed images, a manifest or precomputed
+    vectors, and the domain that produced them keeps ownership of how.
+
+    `background` is an optional second source of negatives. Without it there is
+    no reject class: the model is closed-set, cannot decline, and the card says
+    so rather than implying a rejection capability that was never fitted.
+    """
+    from plantid.tool import sources as _src
+
+    def _vecs(r):
+        if r.descriptor is not None:
+            return _l2(np.asarray(r.descriptor, dtype="float32"))
+        from plantid.features.pretrained import embed_images, load_encoder
+        model, preprocess, device = load_encoder(encoder_variant)
+        return _l2(embed_images(list(r.path), model, preprocess, device))
+
+    X = _vecs(rows)
+    rng = np.random.default_rng(seed)
+    uniq = np.array(sorted(set(rows.cluster)))
+    rng.shuffle(uniq)
+    tr = np.isin(rows.cluster, uniq[: len(uniq) // 2])
+
+    Xtr, ytr = [X[tr]], [rows.label[tr]]
+    ev, truth, cluster, bucket = [X[~tr]], [rows.label[~tr]], [rows.cluster[~tr]], \
+        ["in_catalog"] * int((~tr).sum())
+    counts = {"in_catalog": int((~tr).sum()), "near_ood": 0, "distant_ood": 0,
+              "train": int(tr.sum())}
+    notes = list(rows.notes)
+
+    if background is not None:
+        B = _vecs(background)
+        cut = rng.permutation(len(B))
+        n = int(BG_TRAIN_FRAC * len(B))
+        Xtr.append(B[cut[:n]]); ytr.append(np.full(n, OTHER))
+        far = cut[n:]
+        ev.append(B[far]); truth.append(np.full(len(far), OTHER))
+        cluster.append(background.cluster[far])
+        bucket += ["distant_ood"] * len(far)
+        counts["distant_ood"] = len(far)
+        counts["train"] += n
+    else:
+        notes.append("no background supplied: closed-set only, the model cannot decline")
+
+    counts["notes"] = notes
+    counts["has_clusters"] = bool(rows.has_clusters)
+    return Dataset(np.vstack(Xtr), np.concatenate(ytr), pd.DataFrame(),
+                   np.vstack(ev), np.concatenate(truth), np.array(bucket), counts,
+                   np.concatenate(cluster))
+
+
 def fit_head(ds: Dataset, C: float = 10.0) -> LogisticRegression:
     return LogisticRegression(max_iter=3000, C=C, class_weight="balanced").fit(
         ds.X_train, ds.y_train

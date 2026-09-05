@@ -21,8 +21,31 @@ import json
 from bisect import bisect_left
 from pathlib import Path
 
-GRID = json.loads((Path(__file__).parent / "frontier.json").read_text())
+PROFILES = Path(__file__).parent / "profiles"
 METRICS = ("top1", "coverage", "precision", "species_share")
+DEFAULT_PROFILE = "plants-bioclip2"
+
+
+def available() -> list[str]:
+    return sorted(p.stem for p in PROFILES.glob("*.json"))
+
+
+def load_profile(name: str | None):
+    """The measured grid for one domain+encoder pair, or None if there isn't one.
+
+    Projection is **disabled** without a profile rather than falling back to the
+    plant grid. `BIRDS_FINDINGS.md` licenses stating the coarse-answer trap as a
+    property of hierarchical label sets in general -- but it licenses the
+    *warnings*, not the numbers. These were measured on 530 plant species through
+    BioCLIP-2 and mean nothing for fungi, SKUs or weld defects.
+    """
+    if name is None:
+        return None
+    f = PROFILES / f"{name}.json"
+    return json.loads(f.read_text()) if f.exists() else None
+
+
+GRID = load_profile(DEFAULT_PROFILE)
 
 
 def _interp(x, x0, x1, y0, y1):
@@ -32,7 +55,7 @@ def _interp(x, x0, x1, y0, y1):
     return y0 + t * (y1 - y0)
 
 
-def _cells(encoder, K):
+def _cells(encoder, K, GRID):
     """The easy/hard pair measured at this K, with their congener anchors."""
     rows = [r for r in GRID["cells"] if r["encoder"] == encoder and r["K"] == K]
     by_arm = {r["arm"]: r for r in rows}
@@ -40,9 +63,9 @@ def _cells(encoder, K):
     return by_arm, anchors
 
 
-def _at_K(encoder, K, cfrac, p_ood):
+def _at_K(encoder, K, cfrac, p_ood, GRID):
     """Interpolate between the easy and hard arms at a measured K."""
-    by_arm, anchors = _cells(encoder, K)
+    by_arm, anchors = _cells(encoder, K, GRID)
     if "easy" not in by_arm or "hard" not in by_arm:
         return None
     out = {}
@@ -54,7 +77,8 @@ def _at_K(encoder, K, cfrac, p_ood):
     return out
 
 
-def project(encoder: str, n_species: int, congener_frac: float, p_ood: float = 0.2) -> dict:
+def project(encoder: str, n_species: int, congener_frac: float, p_ood: float = 0.2,
+            profile: str | None = DEFAULT_PROFILE) -> dict:
     """Projected top-1, coverage, precision and species-level share.
 
     Clamped to the measured range of K rather than extrapolated: outside 10-50
@@ -62,6 +86,11 @@ def project(encoder: str, n_species: int, congener_frac: float, p_ood: float = 0
     trend past its evidence is the thing this project's conventions exist to
     prevent. `extrapolated` says which way it was clamped.
     """
+    GRID = load_profile(profile)
+    if GRID is None:
+        raise ValueError(
+            f"no measured profile {profile!r}; projection is disabled without one. "
+            f"Available: {available() or 'none'}. `plan` still reports structure.")
     ks = sorted({r["K"] for r in GRID["cells"] if r["encoder"] == encoder})
     if not ks:
         raise ValueError(f"no measurements for encoder {encoder!r}")
@@ -74,15 +103,17 @@ def project(encoder: str, n_species: int, congener_frac: float, p_ood: float = 0
 
     i = bisect_left(ks, K)
     if i < len(ks) and ks[i] == K:
-        vals = _at_K(encoder, K, congener_frac, key)
+        vals = _at_K(encoder, K, congener_frac, key, GRID)
     else:
         lo, hi = ks[i - 1], ks[i]
-        a, b = _at_K(encoder, lo, congener_frac, key), _at_K(encoder, hi, congener_frac, key)
+        a = _at_K(encoder, lo, congener_frac, key, GRID)
+        b = _at_K(encoder, hi, congener_frac, key, GRID)
         vals = {m: _interp(K, lo, hi, a[m], b[m]) for m in METRICS}
 
-    return {**vals, "K_used": K, "extrapolated": extrapolated,
+    return {**vals, "K_used": K, "extrapolated": extrapolated, "profile": profile,
             "encoder": encoder, "p_ood": p_ood, "congener_frac": congener_frac}
 
 
-def measured_p_ood() -> list[float]:
-    return [float(p) for p in GRID["p_ood_measured"]]
+def measured_p_ood(profile: str | None = DEFAULT_PROFILE) -> list[float]:
+    g = load_profile(profile)
+    return [float(p) for p in g["p_ood_measured"]] if g else []

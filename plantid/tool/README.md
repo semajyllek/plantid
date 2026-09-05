@@ -4,10 +4,42 @@ Turn a chosen species list into a small offline model, and say honestly what it
 will and will not do.
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m plantid.tool.cli plan  --species my.txt --budget 20
-PYTHONPATH=. .venv/bin/python -m plantid.tool.cli build --species my.txt --out models/mine
-PYTHONPATH=. .venv/bin/python -m plantid.tool.cli card  models/mine
+plantid plan  --species my.txt --budget 20
+plantid build --images ./photos --background-images ./other --out models/mine
+plantid card  models/mine
 ```
+
+(`PYTHONPATH=. .venv/bin/python -m plantid.tool.cli ...` until it is packaged.)
+
+## It takes a dataset; it does not fetch one
+
+Three ways in, and nothing here knows what a plant is:
+
+| flag | shape |
+|---|---|
+| `--images DIR` | `DIR/<label>/*.jpg` |
+| `--manifest FILE` | parquet/csv with `label`, `path` [, `group`, `cluster`] |
+| `--embeddings FILE` | npz with `descriptor`, `label` [, `group`, `cluster`] |
+
+`--background-*` takes the same three forms and supplies negatives. Without it
+there is no reject class: the model is closed-set, cannot decline, and the card
+says so rather than implying a rejection capability that was never fitted.
+
+**`cluster` is the unit that must not straddle a split** — several photographs of
+one plant, one specimen, one production run. Supply it whenever the data has that
+structure. Without it every row is treated as independent and the card records
+that its intervals are anticonservative.
+
+**`group`** is the coarse rank the cascade falls back to. It defaults to the
+first whitespace-delimited token of the label, which is exactly right for
+Linnaean binomials and often right elsewhere; override it with a column.
+
+Labels need not be binomials. A list that is *wholly* `Genus species` gets the
+Linnaean join key applied; anything else passes through as written.
+
+Fetching from iNaturalist, GBIF or anywhere else deliberately lives outside the
+tool — see `analysis/` — because the choice of corpus, its licensing and its
+taxonomy are domain decisions.
 
 ## Why `plan` comes first
 
@@ -40,7 +72,7 @@ share.
 genera and for relatives left *outside* it (the weakest rejection case, since no
 correct label exists for them), picks an encoder for the byte budget, and
 projects coverage / precision / species-share by interpolating the measured grid
-in `frontier.json`.
+for the domain (`profiles/`), or declines to project if there is none.
 
 **`build`** — fits a logistic head over frozen embeddings, fits the
 species/genus/decline thresholds from `eval/rejection.py` by expected-utility
@@ -72,6 +104,17 @@ fact about the list rather than a presentation choice.
 `plan --ood-rate` is restricted to the rates actually measured (0.5 / 0.2 / 0.1);
 `build` accepts any value because it fits on your data.
 
+### Projection is gated behind a measured profile
+
+`profiles/plants-bioclip2.json` is a grid measured on 530 plant species through
+BioCLIP-2. There is no fallback: ask for a domain without a profile and
+projection raises rather than quoting plant numbers at you.
+
+`BIRDS_FINDINGS.md` shows the coarse-answer trap reproducing on birds — species
+level 0.958 → 0.718 for a genus-crowded set that scored *higher* on coverage.
+That licenses `plan`'s structural warnings in any domain with a label/group
+hierarchy. It does not license the numbers.
+
 ## Encoders
 
 Image tower only — the text tower never ships. int4 is the default assumed
@@ -81,11 +124,17 @@ size tested.
 | encoder | params | int4 | notes |
 |---|---|---|---|
 | MobileCLIP2-S0 | 11.4 M | 5.7 MB | microcontroller-class |
-| MobileCLIP2-S2 | 35.8 M | 17.9 MB | 1.6pp behind BioCLIP-2 at 10 species |
-| BioCLIP-2 | 304.0 M | 152 MB | reconciles with the shipped 160 MB build |
+| MobileCLIP2-S2 | 35.8 M | 17.9 MB | 1.6pp behind BioCLIP-2 at 10 species, but fragile |
+| PlantCLEF2024 | 86.6 M | 43.3 MB | ≈BioCLIP-2, *safer* on hazards, but 38.6 ms/image |
+| BioCLIP-2 | 304.0 M | 152 MB | reconciles with the shipped 160 MB build; 20.4 ms |
 
-A phone is **not** a constrained target: 152 MB fits comfortably. The small
-encoders matter below ~20 MB — Coral, microcontrollers, cheap drone payloads.
+A phone is **not** a constrained target: 152 MB fits comfortably and is the
+fastest option. **Byte order is not speed order** — PlantCLEF2024 is a third of
+BioCLIP-2's parameters and nearly twice its latency, because it runs at 518px. So
+`choose` ranks storage only, and a latency budget needs `--encoder` passed by
+hand. The small encoders matter below ~20 MB — Coral, microcontrollers, cheap
+drone payloads — and `CONTAMINATION_FINDINGS.md` shows they are also the ones
+that degrade under any distribution change.
 
 ## Limits worth knowing before you build
 
@@ -97,8 +146,9 @@ encoders matter below ~20 MB — Coral, microcontrollers, cheap drone payloads.
   `data/resolve_taxa.py` already resolves names against iNaturalist (475 of 497),
   but it is fuzzy matching rather than a GBIF/POWO backbone, which is what a pool
   of thousands would need.
-- **The data source is local.** `build` reads the catalogue embedding caches.
-  Fetching arbitrary species from iNaturalist is not wired up yet, so a list is
-  currently limited to species the catalogue covers.
+- **`plan`'s reference pool is the local catalogue.** `build` accepts any source,
+  but the composition warnings still check relatives against the bundled 499
+  binomials, so `plan` is most useful for plants until a broader taxonomy is
+  wired in.
 - **Nothing here is verification.** Do not eat anything on the basis of a model
   this builds.
