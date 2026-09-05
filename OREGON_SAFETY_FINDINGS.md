@@ -89,11 +89,14 @@ understates safety-critical degradation.** `EMBEDDED_FINDINGS.md` put S2 within
 1.6–4.8pp of BioCLIP-2 on catalogue top-1 and that remains true; it is simply not
 the relevant number here.
 
-> **Confound, stated plainly.** BioCLIP-2 is trained on iNaturalist via GBIF and
-> these are iNaturalist images. MobileCLIP2 is a general web-image model with far
-> less biological exposure. Some unknown part of this gap is that asymmetry
-> rather than capacity. It does not change the verdict for S2 — 28.3% fails on
-> its own terms — but it inflates BioCLIP-2's apparent margin.
+> **Confound, since measured.** ~~Some unknown part of this gap is BioCLIP-2
+> having trained on iNaturalist via GBIF while MobileCLIP2 has far less
+> biological exposure, which inflates BioCLIP-2's apparent margin.~~ Tested
+> directly in `CONTAMINATION_FINDINGS.md`: on images uploaded after BioCLIP-2's
+> training cutoff, against a matched control, BioCLIP-2 loses 0.27pp (CI
+> [−0.88, +0.35]) and **S2 loses 2.34pp (CI [−4.14, −0.57])**. The asymmetry runs
+> the *other* way — the encoder least likely to have seen these images degrades
+> most. The gap is capacity and robustness, not memorisation.
 
 ## What the pre-registration missed
 
@@ -107,10 +110,16 @@ next pre-registration includes it, not to be quoted as a tested result.
 
 ## Contamination ceiling
 
-iNaturalist is inside BioCLIP-2's training data (`DATA_STRATEGY.md`), so every
-number here is an **upper bound**. Failure here is decisive; success here is not.
-Only photographs taken outside that corpus — Tier 1 in `DATA_STRATEGY.md`, i.e.
-your own camera in Oregon — can settle it.
+iNaturalist is inside BioCLIP-2's training data (`DATA_STRATEGY.md`), so these
+numbers were stated as an upper bound. That bound has since been **measured**:
+`CONTAMINATION_FINDINGS.md` compares images uploaded after BioCLIP-2's training
+cutoff against a matched control and finds −0.27pp, CI [−0.88, +0.35] —
+indistinguishable from zero. The memorisation caveat is quantified at under 1pp
+and does not overturn anything here.
+
+What remains untested is *domain* shift: same platform, same photographic
+culture. Photographs taken on a different camera by a different person — Tier 1
+in `DATA_STRATEGY.md` — are still the open gap.
 
 ## What this means
 
