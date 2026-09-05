@@ -19,16 +19,22 @@ class Encoder:
     label: str
     params_m: float
     dim: int
+    input_px: int = 224
+    ms_per_image: float | None = None    # MPS, batch 8, M4 Max — indicative, not ANE
 
     def size_mb(self, bits: int = 4) -> float:
         return self.params_m * bits / 8.0
 
 
-# Ordered smallest to largest; `choose` relies on that.
+# Ordered smallest to largest by *bytes*, which `choose` relies on. Note that
+# byte order is no longer speed order: PlantCLEF2024 is a third of BioCLIP-2's
+# parameters and twice its latency, because it runs at 518px -- 5.3x the pixels.
+# Storage and compute are separate budgets and this registry can only rank one.
 ENCODERS = (
-    Encoder("mobileclip2_s0", "MobileCLIP2-S0", 11.4, 512),
-    Encoder("mobileclip2_s2", "MobileCLIP2-S2", 35.8, 512),
-    Encoder("bioclip2", "BioCLIP-2 (ViT-L)", 304.0, 768),
+    Encoder("mobileclip2_s0", "MobileCLIP2-S0", 11.4, 512, 256),
+    Encoder("mobileclip2_s2", "MobileCLIP2-S2", 35.8, 512, 256, 5.2),
+    Encoder("plantclef24", "PlantCLEF2024 (ViT-B/14 @518)", 86.6, 768, 518, 38.6),
+    Encoder("bioclip2", "BioCLIP-2 (ViT-L)", 304.0, 768, 224, 20.4),
 )
 BY_VARIANT = {e.variant: e for e in ENCODERS}
 
@@ -36,9 +42,13 @@ BY_VARIANT = {e.variant: e for e in ENCODERS}
 def choose(budget_mb: float | None, bits: int = 4) -> Encoder:
     """Largest encoder fitting the budget; the smallest if nothing fits.
 
-    Largest-that-fits rather than smallest-that-works because accuracy is
-    monotone in capacity across every measurement here, so unused budget is
-    accuracy left on the table.
+    Largest-that-fits rather than smallest-that-works because accuracy rises
+    with capacity across every measurement here, so unused budget is accuracy
+    left on the table.
+
+    This ranks storage only. It cannot see that PlantCLEF2024 is slower than the
+    model three times its size, so a caller with a *latency* budget should pass
+    `--encoder` explicitly rather than trust a byte budget.
     """
     if budget_mb is None:
         return BY_VARIANT["bioclip2"]

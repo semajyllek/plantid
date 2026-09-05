@@ -62,10 +62,17 @@ def load(variant):
     """
     d = np.load(S / f"emb_{variant}.npz", allow_pickle=True)
     m = pd.read_parquet(S / "manifest.parquet").reset_index(drop=True)
-    assert len(m) == len(d["descriptor"]), "manifest and embeddings are not row-aligned"
     keep = ~m.duplicated("local_path").to_numpy()
-    X, y, obs = d["descriptor"][keep], d["species_name"].astype(str)[keep], \
-        d["obs_id"].astype(str)[keep]
+    n = len(d["descriptor"])
+    if n == len(m):                 # embedded from the raw manifest
+        sel = keep
+    elif n == int(keep.sum()):      # embedded from an already-deduped manifest
+        sel = np.ones(n, bool)
+    else:
+        raise AssertionError(f"{variant}: {n} embeddings match neither the manifest "
+                             f"({len(m)}) nor its deduped length ({int(keep.sum())})")
+    X, y, obs = d["descriptor"][sel], d["species_name"].astype(str)[sel], \
+        d["obs_id"].astype(str)[sel]
     # Dedupe drops duplicate *rows*, not observations: the 170 doubled
     # observations keep one copy each, so the observation count is unchanged.
     assert len(X) == 6023, f"expected 6023 rows after dedupe, got {len(X)}"

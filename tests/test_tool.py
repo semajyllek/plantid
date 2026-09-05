@@ -137,9 +137,19 @@ def test_plan_refuses_to_project_when_most_of_the_list_is_absent():
 
 
 def test_plan_reports_budget_shortfall():
+    """Names the next step up, which is PlantCLEF2024 at 43.3 MB, not BioCLIP-2."""
     pl = plan.make_plan(["Bellis perennis"], budget_mb=20, pool=POOL)
-    assert "152.0 MB" in pl["budget_note"]
+    assert "43.3 MB" in pl["budget_note"]
     assert pl["encoder"].variant == "mobileclip2_s2"
+
+
+def test_choose_ranks_storage_and_cannot_see_latency():
+    """PlantCLEF2024 is a third of BioCLIP-2's bytes and twice its latency."""
+    assert encoders.choose(50).variant == "plantclef24"
+    assert encoders.choose(200).variant == "bioclip2"
+    pc = encoders.BY_VARIANT["plantclef24"]
+    bc = encoders.BY_VARIANT["bioclip2"]
+    assert pc.size_mb() < bc.size_mb() and pc.ms_per_image > bc.ms_per_image
 
 
 # ---- card -----------------------------------------------------------------

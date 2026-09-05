@@ -229,6 +229,57 @@ GBIF, so this overstates its robustness too. The practical conclusion is
 unaffected: at 20 species on realistic photographs, 17.9 MB buys 0.856 and 152 MB
 buys 0.977.
 
+## The middle ground exists, and it is not a distilled model
+
+Distilling BioCLIP-2 into a ViT-B was tried and failed (`CLAUDE.md`, closed list):
+`bioclip1_distil` *lost* 0.7pp of genus against the off-the-shelf BioCLIP v1 it
+was meant to beat, recovering ~10% of the gap. Compressing the large encoder does
+not work.
+
+Picking a different one does. **PlantCLEF2024** — DINOv2 ViT-B/14 fine-tuned on
+7,806 Pl@ntNet species, already in `features/pretrained.py` — was rejected in
+`BAKEOFF_FINDINGS.md` as a *benchmark* because 71.3% of that test set was inside
+its training data. That is the right call for a benchmark and says nothing about
+its use as a *deployment encoder*, which had never been evaluated.
+
+On Oregon iNaturalist photographs, split by observation:
+
+| encoder | int4 | ms/image | 20 common Oregon | 27-way safety set | hemlock named edible @100% | @75% |
+|---|---|---|---|---|---|---|
+| BioCLIP-2 | 152.0 MB | 20.4 | **0.9769** | **0.9743** | 0.067 | 0.008 |
+| **PlantCLEF2024** | **43.3 MB** | 38.6 | 0.9621 | 0.9670 | **0.042** | **0.000** |
+| MobileCLIP2-S2 | 17.9 MB | 5.2 | 0.8557 | 0.8184 | 0.283 | 0.167 |
+
+**At 3.5x fewer bytes it is 1.5pp behind on accuracy and *ahead* on safety** —
+zero hemlock-named-edible at 75% coverage, where BioCLIP-2 still has 0.8%.
+
+Two things make this less surprising than it looks. It is trained on plants
+specifically rather than all of biology, and it runs at 518px — 5.3x the pixels —
+which is exactly the resolution advantage you would expect to matter for
+distinguishing umbels.
+
+### The cost is latency, not size
+
+**38.6 ms/image against BioCLIP-2's 20.4** (MPS, batch 8, M4 Max — indicative,
+not ANE). A third of the parameters and nearly twice the time, because of the
+input resolution. So:
+
+- **storage-constrained, compute available** → PlantCLEF2024
+- **phone** → BioCLIP-2; 152 MB fits and it is twice as fast
+- **both constrained** → neither, and S2 is not safe at 0.283
+
+Byte order is no longer speed order, so `encoders.choose` ranks storage only and
+says so. A caller with a latency budget must pass `--encoder` explicitly.
+
+### Contamination cuts the other way here
+
+BioCLIP-2 trains on iNaturalist via GBIF and these *are* iNaturalist images.
+PlantCLEF2024 trains on Pl@ntNet images of overlapping *taxa*. So BioCLIP-2's
+numbers are inflated by image-level exposure while PlantCLEF2024's are inflated
+only by taxon-level exposure — the weaker form. The true gap is plausibly smaller
+than the 1.5pp measured, in PlantCLEF2024's favour. Neither is clean; only field
+photographs are.
+
 ## Not yet measured
 
 - **Fine-tuning.** Everything here is frozen. The frontier may make it
