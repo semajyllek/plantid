@@ -1,0 +1,146 @@
+"""Reading a user's species list, and finding the relatives they left out.
+
+Two things happen here, and the second is the one that earns the tool its keep.
+
+**Congeners inside the set** drive how the model answers. When several chosen
+species share a genus the cascade can fall back to a genus answer that is
+technically correct and practically empty -- "it is a Sedum" on a list of six
+Sedums -- so a high in-set congener fraction predicts a low species-level share.
+
+**Congeners outside the set** drive how the model fails. A relative that is not
+in the catalogue has no correct label available, and the measurements show
+near-OOD is where rejection is weakest. Those are the species a user will be
+confidently told are something else, and naming them is more useful than any
+aggregate.
+
+The reference pool for "what else is in this genus" is the local catalogue.
+That is a floor, not a census: it holds 530 labels collapsing to 499 binomials
+over 172 genera, so a genus whose relatives it never included will look safer
+than it is. Widening the pool needs a taxonomy source that is not wired up yet.
+"""
+
+import json
+import re
+from collections import Counter, defaultdict
+from pathlib import Path
+
+import pandas as pd
+
+from plantid.config import DATA_PROCESSED
+from plantid.data.curation import canonical_name
+
+_COMMENT = re.compile(r"#.*$")
+# Validation only. Normalisation is `curation.canonical_name`'s job -- it is the
+# join key the background pool and every existing evaluation already use, and a
+# second implementation here disagreed with it on three catalogue names
+# ('Pelargonium spp.', and the two hybrids, where it kept '×' against the
+# repo's 'x'). Two spellings of a join key is a silent mismatch, not a style
+# difference.
+_BINOMIAL = re.compile(r"^[A-Z][a-z\-]+(?:\s+[×x])?\s+[a-z\-]+")
+
+
+def canonical(name: str) -> str | None:
+    """Canonical binomial for a user-supplied name, or None if it does not parse.
+
+    Parsing is stricter than `canonical_name`, which normalises anything it is
+    given: a user's list is typed by hand, so 'not a binomial' must fail loudly
+    rather than become a class label.
+    """
+    name = _COMMENT.sub("", str(name)).strip()
+    if not name or not _BINOMIAL.match(name):
+        return None
+    return canonical_name(name)
+
+
+def read_list(path: str | Path) -> list[str]:
+    """One species per line; blank lines and `#` comments ignored.
+
+    Raises on unparseable lines rather than dropping them: a silently ignored
+    species is a model that quietly cannot see a plant the user asked for.
+    """
+    raw = Path(path).read_text().splitlines()
+    out, bad = [], []
+    for i, line in enumerate(raw, 1):
+        if not _COMMENT.sub("", line).strip():
+            continue
+        c = canonical(line)
+        (out.append(c) if c else bad.append((i, line.strip())))
+    if bad:
+        detail = "; ".join(f"line {i}: {t!r}" for i, t in bad[:5])
+        raise ValueError(f"could not parse {len(bad)} line(s) as 'Genus species' -- {detail}")
+    seen, uniq = set(), []
+    for s in out:
+        if s not in seen:
+            seen.add(s)
+            uniq.append(s)
+    return uniq
+
+
+def genus(name: str) -> str:
+    return name.split()[0]
+
+
+def catalogue_pool(cache_dir=DATA_PROCESSED) -> list[str]:
+    """Every species the local catalogue knows, as canonical binomials."""
+    path = Path(cache_dir) / "catalog_index.parquet"
+    if not path.exists():
+        return []
+    names = pd.read_parquet(path)["species_name"].unique()
+    return sorted({c for c in map(canonical, names) if c})
+
+
+def taxonomy_pool(cache_dir=DATA_PROCESSED) -> dict[str, int]:
+    """Canonical name -> iNaturalist taxon id, where resolution succeeded."""
+    path = Path(cache_dir) / "catalog_taxonomy.json"
+    if not path.exists():
+        return {}
+    out = {}
+    for rec in json.loads(path.read_text()):
+        c = canonical(rec.get("resolved") or rec.get("catalog_name") or "")
+        if c and rec.get("taxon_id"):
+            out[c] = int(rec["taxon_id"])
+    return out
+
+
+def analyse(chosen: list[str], pool: list[str] | None = None) -> dict:
+    """Composition of a species list, plus the relatives it leaves outside.
+
+    `in_set_congener_frac` is the share of chosen species sharing a genus with
+    another chosen species. It is the axis the projection interpolates on, and
+    the measured arms sit at roughly 0.10-0.44 (unrelated draws) and 1.00
+    (genus-dense draws).
+    """
+    pool = catalogue_pool() if pool is None else pool
+    chosen = list(dict.fromkeys(chosen))
+    gcount = Counter(genus(s) for s in chosen)
+
+    by_genus = defaultdict(list)
+    for s in pool:
+        by_genus[genus(s)].append(s)
+
+    inside = {g: n for g, n in gcount.items() if n >= 2}
+
+    # Grouped by genus, not by species: on a list of eight Sedums, a per-species
+    # listing repeats the same thirty relatives eight times and buries the one
+    # fact that matters -- how much of each genus was left outside.
+    outside = {}
+    for g in gcount:
+        rel = sorted(set(by_genus.get(g, [])) - set(chosen))
+        if rel:
+            outside[g] = rel
+    n_exposed = sum(gcount[g] for g in outside)
+
+    n = max(len(chosen), 1)
+    return {
+        "species": chosen,
+        "n_species": len(chosen),
+        "n_genera": len(gcount),
+        "in_set_congener_frac": sum(gcount[genus(s)] >= 2 for s in chosen) / n,
+        "crowded_genera": dict(sorted(inside.items(), key=lambda kv: -kv[1])),
+        "outside_congeners": dict(sorted(outside.items(), key=lambda kv: -len(kv[1]))),
+        "n_genera_with_outside": len(outside),
+        "n_species_exposed": n_exposed,
+        "pool_size": len(pool),
+        # underscore-prefixed keys are working state, stripped before serialising
+        "_pool": pool,
+    }
