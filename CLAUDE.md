@@ -4,8 +4,14 @@ On-device plant identification for Europe / North America. A **490-class curated
 catalogue** over frozen BioCLIP embeddings, with a three-way answer: name the
 species, name the genus, or decline.
 
+The tool that grew out of this lives in a **separate repo**,
+[narrowcast](https://github.com/semajyllek/narrowcast), generalised from
+species/genus to label/group. It deliberately cannot read this project's
+catalogue caches; the seam is `analysis/export_for_narrowcast.py`.
+
 Read this first, then `ROADMAP.md` for the plan and the `*_FINDINGS.md` docs for
-evidence. **Git history is the chronological record** — commit messages carry the
+evidence. The newest four are `EMBEDDED_FINDINGS`, `OREGON_SAFETY_FINDINGS`,
+`CONTAMINATION_FINDINGS` and `BIRDS_FINDINGS`. **Git history is the chronological record** — commit messages carry the
 reasoning, the numbers, and the retractions.
 
 ## The one thing that is easy to get wrong
@@ -20,6 +26,7 @@ observations:
 | **`bioclip2_cml4`** | **Core ML int4, 160 MB — deployable** | **0.9735** | **0.8370** | **0.692** |
 | `bioclip1` | ViT-B fp32 | 0.9310 | 0.7604 | 0.531 |
 | `bioclip1_cml4` | Core ML int4, 46 MB | 0.9179 | 0.7517 | 0.499 |
+| `plantclef24` | ViT-B/14 @518, 43 MB — **the middle ground** | see below | see below | — |
 | `bioclip1_distil` | distilled from BioCLIP-2 — **failed** | 0.9243 | 0.7706 | 0.550 |
 | `bioclip_inat` | iNat-only ViT-B — **eliminated** | 0.9115 | 0.7438 | 0.515 |
 
@@ -61,6 +68,12 @@ These exist because things failed without them. Follow them.
   out-of-catalogue rate at 20%, so the evaluation set's incidental composition
   cannot choose the operating point. Adding data once moved `t_species` from
   0.897 to 0.552 and produced a completely different product.
+- **The contamination caveat is now measured, not assumed.** iNaturalist is in
+  BioCLIP-2's training data, and that qualified every number here as an upper
+  bound. Tested against images uploaded after its training cutoff with a matched
+  control: **−0.27pp, CI [−0.88, +0.35]** (`CONTAMINATION_FINDINGS.md`). Under
+  1pp. Do not re-hedge on it. *Domain* shift — a different camera in different
+  hands — is still untested and is a separate thing.
 - **Cosine does not predict accuracy.** Checked three times: it under-predicted
   the cost of int4 (0.932 → −1.3pp), wildly over-predicted distillation (0.956 →
   nothing), and was right once (0.982 → −0.1pp). It bounds how much *could* have
@@ -116,10 +129,21 @@ docs.
 - **Background pool size.** 59 species performs as well as 589 on every rejection
   metric.
 - **Cropping, ORB retrieval, classical descriptors.** All measured and lost.
+- **Distillation, reconfirmed.** The middle ground between 17.9 MB and 152 MB is
+  **not** a compressed BioCLIP-2 — it is `plantclef24`, an off-the-shelf ViT-B at
+  43 MB that is 1.5pp behind on accuracy and *ahead* on hazard safety. It costs
+  38.6 ms/image against BioCLIP-2's 20.4, because it runs at 518px. Byte order is
+  not speed order.
 
 ## Open
 
-- **The size decision** above.
+- **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
+  any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
+- **A clean domain-shift test.** The only untested axis left. Needs photographs
+  taken on a different camera — Tier 1 in `DATA_STRATEGY.md`.
+- **Oregon.** 4,570 research-grade species available, 1,175 with ≥100
+  observations; the current 499-binomial catalogue overlaps it by 106. A regional
+  catalogue is a fresh fetch, not an adaptation.
 - **A real phone.** All latency is M4 Max ANE (121 ms for the 160 MB build), not
   A-series.
 - **Seek's on-device accuracy at species rank**, on our images. The only
