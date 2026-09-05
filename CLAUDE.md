@@ -4,10 +4,18 @@ On-device plant identification for Europe / North America. A **490-class curated
 catalogue** over frozen BioCLIP embeddings, with a three-way answer: name the
 species, name the genus, or decline.
 
-The tool that grew out of this lives in a **separate repo**,
-[narrowcast](https://github.com/semajyllek/narrowcast), generalised from
-species/genus to label/group. It deliberately cannot read this project's
-catalogue caches; the seam is `analysis/export_for_narrowcast.py`.
+## Three repos, and which is which
+
+| repo | is | note |
+|---|---|---|
+| **plantid** (here) | the research record | 28 findings/prereg docs, 129 tests. Evidence only. |
+| [**narrowcast**](https://github.com/semajyllek/narrowcast) | the tool, pip-installable | domain-general, 65 tests, CI. `fit / plan / build / card / encoders` |
+| [**narrowcast-kws**](https://github.com/semajyllek/narrowcast-kws) | audio demo | consumes the *installed package*; ESC-50 + Speech Commands |
+
+narrowcast deliberately cannot read this project's catalogue caches — choosing a
+corpus and reconciling its taxonomy are domain decisions. The seam is
+`analysis/export_for_narrowcast.py`, which writes catalogue vectors in the
+`--embeddings` format.
 
 Read this first, then `ROADMAP.md` for the plan and the `*_FINDINGS.md` docs for
 evidence. The newest four are `EMBEDDED_FINDINGS`, `OREGON_SAFETY_FINDINGS`,
@@ -134,9 +142,44 @@ docs.
   43 MB that is 1.5pp behind on accuracy and *ahead* on hazard safety. It costs
   38.6 ms/image against BioCLIP-2's 20.4, because it runs at 518px. Byte order is
   not speed order.
+- **Pruning, to reach a small budget** (`PRUNE_FINDINGS.md`). Depth-pruned
+  BioCLIP-2 at 127 MB scores 0.9323; off-the-shelf `plantclef24` at 43 MB scores
+  0.9621. Every pruned point is dominated. 99% of ViT-L is its 24 blocks, so
+  reaching 17.9 MB needs ~3 of them. **Selection beats compression** — spend a
+  GPU on evaluating breadth, not on compressing.
+- **Reading an earlier layer** (`LAYER_FINDINGS.md`). Perception Encoder reports
+  mid-stack embeddings beat the output for contrastive encoders. Not here: every
+  intermediate layer is worse, monotonically, and concatenation adds +0.0000.
+  BioCLIP-2's objective already matches the task.
+
+## The finding the tool is built on
+
+A label set crowded with siblings of one group buys **coverage** with coarse
+answers that narrow nothing, so the headline metrics move the reassuring way
+while the model gets worse. Replicated across domains and modalities:
+
+| crowded vs varied | Δcoverage | Δlabel-level |
+|---|---|---|
+| plants (image) | +0.188 | **−0.285** |
+| birds (image) | +0.018 | **−0.240** |
+| text, 20 Newsgroups | +0.216 | **−0.326** |
+| ESC-50 (audio) | −0.095 | −0.107 |
+| Speech Commands (audio) | −0.027 | −0.077 |
+
+**It does not always fire, and the audio cases are why.** Working hypothesis
+(`narrowcast-kws`): the governing quantity is *headroom* — coarse-rank accuracy
+minus fine-rank accuracy. Large headroom makes retreating to the group attractive
+so coverage inflates; small headroom means retreating buys nothing and the model
+degrades visibly instead. **n=4 arms, one already breaks it — a hypothesis, not
+a finding.**
+
+Practical consequence, already in the tool: the crowded-set warning is a warning
+about a *risk*, not a prediction of harm.
 
 ## Open
 
+- **Test the headroom hypothesis** on more arms. It is the cheapest open question
+  and would either give the tool a predictive rule or kill a nice story.
 - **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
   any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
 - **A clean domain-shift test.** The only untested axis left. Needs photographs
