@@ -144,8 +144,6 @@ def load_rows(rows, encoder_variant: str, background=None, seed: int = 0) -> Dat
     no reject class: the model is closed-set, cannot decline, and the card says
     so rather than implying a rejection capability that was never fitted.
     """
-    from plantid.tool import sources as _src
-
     def _vecs(r):
         if r.descriptor is not None:
             return _l2(np.asarray(r.descriptor, dtype="float32"))
