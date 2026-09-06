@@ -11,6 +11,7 @@ species, name the genus, or decline.
 | **plantid** (here) | the research record | 28 findings/prereg docs, 129 tests. Evidence only. |
 | [**narrowcast**](https://github.com/semajyllek/narrowcast) | the tool, pip-installable | domain-general, 65 tests, CI. `fit / plan / build / card / encoders` |
 | [**narrowcast-kws**](https://github.com/semajyllek/narrowcast-kws) | audio demo | consumes the *installed package*; ESC-50 + Speech Commands |
+| [**narrowcast-derm**](https://github.com/semajyllek/narrowcast-derm) | medical-image demo | Fitzpatrick17k + DINOv2. Preregistered; found that `1.8 ×` omits `p_ood` |
 
 narrowcast deliberately cannot read this project's catalogue caches — choosing a
 corpus and reconciling its taxonomy are domain decisions. The seam is
@@ -179,7 +180,8 @@ while the model gets worse. Replicated across domains and modalities:
 the group rank at **CV R² 0.883** over 1,409 arms, against 0.362 for fine
 accuracy alone (`HEADROOM_FINDINGS.md`). Was a hypothesis at n=4; is now a
 finding. As a rule of thumb, **group-answer share ≈ 1.8 × headroom**, measurable
-on the calibration split.
+on the calibration split — ~~at any operating point~~ **only with an OOD rate
+attached; see the qualification below.**
 
 The controlled comparison is the thing to remember: one fitted head, fine
 accuracy pinned at 0.659, only the *group column* varying — group answers move
@@ -195,6 +197,35 @@ actually retreat, worst case 0.136 — so treat `1.8 ×` as a floor.
 Test that comparison in **raw** units, not standardised: with unequal SDs,
 `b + c = 0` on z-scores tests a different hypothesis and reports the asymmetry
 with the wrong sign. It did, in a first draft.
+
+**A third qualification, and it is the largest: `1.8 ×` omits the assumed OOD
+rate.** Measured in
+[narrowcast-derm](https://github.com/semajyllek/narrowcast-derm) on 2,688
+Fitzpatrick17k dermatology photographs. Holding headroom *exactly* fixed at 0.124
+— verified per seed and per domain, spread 0.0, because headroom is computed on
+the calibration half from `label_ok`/`group_ok` and no deployment weight enters
+it — and varying only `p_ood`:
+
+| `p_ood` | `t_group` | group share | decline share |
+|---|---|---|---|
+| 0.05 | 0.535 | **0.138** | 0.267 |
+| 0.20 | 0.671 | **0.078** | 0.426 |
+| 0.60 | 0.835 | **0.002** | 0.753 |
+
+The prediction stays pinned at 0.223 while the thing it predicts moves by a
+factor of 70, and sits **below** the floor at every operating point. The
+mechanism: `t_group` is fitted mostly as an out-of-catalogue *rejection*
+threshold and only incidentally gates retreat, so as `p_ood` rises it climbs and
+swallows the retreat band. Of in-catalogue rows failing the label threshold,
+59–93% were declined rather than retreated.
+
+So **headroom predicts the retreat that is *available*, not the retreat that is
+*realised*.** Realisation depends on where the decline threshold lands, which
+depends on `p_ood` and on encoder strength — this arm ran at top-1 ≈ 0.75, well
+below the 0.84–0.97 of the plant arms the rule was fitted on. It is a boundary
+condition reachable here too, not a fact about dermatology. Quote `1.8 ×` only
+with an operating point attached, and prefer *measured* retreat, which is what
+narrowcast's card already gates on.
 
 **narrowcast has now adopted the rule** — `build` measures headroom and the full
 `label`/`group`/`decline` split, and the card reports which pool the group answers
