@@ -196,6 +196,14 @@ Test that comparison in **raw** units, not standardised: with unequal SDs,
 `b + c = 0` on z-scores tests a different hypothesis and reports the asymmetry
 with the wrong sign. It did, in a first draft.
 
+**narrowcast has now adopted the rule** — `build` measures headroom and the full
+`label`/`group`/`decline` split, and the card reports which pool the group answers
+came from instead of assuming. Two things learned in the adoption: `plan`
+*cannot* use headroom (it never loads data, so an earlier claim here was wrong),
+and the card gates on **measured retreat**, not on headroom, because post-fit the
+observation is in hand. Benign retreat is real but narrow — of arms retreating on
+≥18% of in-list observations, 99.1% also have a label share under 0.6.
+
 **Headroom predicts retreat, not harm.** `kws acoustic` is not a counterexample:
 its group answers came out of *declines* so coverage inflated harmlessly, while
 text's came out of *label* answers and quality collapsed. Same mechanism, two
@@ -204,9 +212,6 @@ report drops the label-level share.
 
 ## Open
 
-- **Teach narrowcast the headroom rule.** `HEADROOM_FINDINGS.md` establishes it;
-  the tool's crowded-set warning still fires on label-set *structure* rather than
-  on measured headroom. Deliberately not changed by the run that measured it.
 - **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
   any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
 - **A clean domain-shift test.** The only untested axis left. Needs photographs
