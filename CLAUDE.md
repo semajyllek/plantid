@@ -107,7 +107,12 @@ These exist because things failed without them. Follow them.
   −0.100 for both BioCLIP v1 variants, −0.163 for `mobileclip2_s0` and −0.179
   for `mobileclip2_s2`. **Source shift is an encoder-scale phenomenon, not a
   property of the photographs.** Survives organ-matching and a geographic split.
-  `plantclef24` is *not* measured and must not be interpolated from the trend.
+  ~~`plantclef24` is *not* measured and must not be interpolated from the
+  trend.~~ **Now measured: −0.086 [−0.119, −0.055]**, and it is an *upper bound* —
+  fine-tuning on 7,806 Pl@ntNet species plausibly inflates its within-source
+  cell, which biases the shift downward. It is the best encoder measured on
+  Pl@ntNet (0.7757, ahead of BioCLIP-2's 0.7633) and 8.5pp behind BioCLIP-2 on
+  iNaturalist. Its whole deficit is a cross-source deficit.
 - **Cosine does not predict accuracy.** Checked three times: it under-predicted
   the cost of int4 (0.932 → −1.3pp), wildly over-predicted distillation (0.956 →
   nothing), and was right once (0.982 → −0.1pp). It bounds how much *could* have
@@ -165,7 +170,13 @@ docs.
 - **Cropping, ORB retrieval, classical descriptors.** All measured and lost.
 - **Distillation, reconfirmed.** The middle ground between 17.9 MB and 152 MB is
   **not** a compressed BioCLIP-2 — it is `plantclef24`, an off-the-shelf ViT-B at
-  43 MB that is 1.5pp behind on accuracy and *ahead* on hazard safety. It costs
+  43 MB that is 1.5pp behind on accuracy and *ahead* on hazard safety. **Qualify
+  the 1.5pp: it is 20 Oregon species.** On the 465-species catalogue with the
+  shipped head the gap on iNaturalist is 8.5pp, and `plantclef24` is *ahead* of
+  BioCLIP-2 on Pl@ntNet — its deficit is entirely cross-source and grows with
+  label-space size (`DOMAIN_SHIFT_FINDINGS.md`). The conclusion that the middle
+  ground is selection rather than compression is unaffected; the price is
+  higher than 1.5pp. It costs
   38.6 ms/image against BioCLIP-2's 20.4, because it runs at 518px. Byte order is
   not speed order.
 - **Pruning, to reach a small budget** (`PRUNE_FINDINGS.md`). Depth-pruned
@@ -262,14 +273,19 @@ report drops the label-level share.
 
 - **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
   any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
+  Source shift is now a column in it and does not follow byte order the way
+  accuracy does: **−0.001 / −0.086 / −0.179** for 152 / 43 / 17.9 MB
+  (`DOMAIN_SHIFT_FINDINGS.md`). The 43 MB build is not a small accuracy
+  concession in the direction that ships. Still a product judgement.
 - **A clean domain-shift test.** ~~The only untested axis left.~~ Still open, but
   narrower: `DOMAIN_SHIFT_FINDINGS.md` measured the *acquisition-source* axis
   (Pl@ntNet vs iNaturalist) and found it free at ViT-L. Both corpora are inside
   BioCLIP-2's pretraining, so that bounds **head** brittleness, not encoder
   generalisation. What remains is a genuinely novel acquisition process:
   photographs taken on a different camera in different hands — Tier 1 in
-  `DATA_STRATEGY.md`. **`plantclef24` has no source-shift number**, so the
-  middle of the size decision below is unmeasured on this axis.
+  `DATA_STRATEGY.md`. ~~**`plantclef24` has no source-shift number**, so the
+  middle of the size decision below is unmeasured on this axis.~~ Measured; see
+  above and the size-decision entry.
 - **Oregon.** 4,570 research-grade species available, 1,175 with ≥100
   observations; the current 499-binomial catalogue overlaps it by 106. A regional
   catalogue is a fresh fetch, not an adaptation.

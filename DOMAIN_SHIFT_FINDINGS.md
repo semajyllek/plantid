@@ -38,11 +38,17 @@ macro-averaged over species; paired species-cluster bootstrap, 2,000 resamples.
 |---|---|---|---|---|---|---|
 | `bioclip2` (ViT-L) | 0.7701 | 0.7691 | 0.8615 | 0.7145 | **−0.001** [−0.029, +0.027] | −0.147 [−0.174, −0.119] |
 | `bioclip2_cml4` (int4) | 0.7622 | 0.7599 | 0.8571 | 0.7119 | **−0.002** [−0.029, +0.026] | −0.145 [−0.172, −0.118] |
+| `plantclef24` (43 MB) | 0.7678 | 0.6815 | 0.8414 | 0.6815 | **−0.086** [−0.119, −0.055] † | −0.160 [−0.187, −0.132] |
 | `bioclip1` (ViT-B) | 0.7009 | 0.6012 | 0.7006 | 0.6013 | **−0.100** [−0.129, −0.072] | −0.099 [−0.127, −0.071] |
 | `bioclip1_cml4` (46 MB) | 0.6836 | 0.5839 | 0.6837 | 0.5813 | **−0.100** [−0.129, −0.070] | −0.102 [−0.133, −0.072] |
 | `bioclip_inat` | 0.6841 | 0.5787 | 0.6552 | 0.5685 | **−0.106** [−0.134, −0.079] | −0.086 [−0.116, −0.058] |
 | `mobileclip2_s0` | 0.5130 | 0.3499 | 0.4281 | 0.3394 | **−0.163** [−0.194, −0.133] | −0.089 [−0.117, −0.060] |
 | `mobileclip2_s2` (17.9 MB) | 0.5827 | 0.4045 | 0.5069 | 0.4123 | **−0.179** [−0.208, −0.148] | −0.095 [−0.125, −0.064] |
+
+† `plantclef24` is fine-tuned on 7,806 Pl@ntNet species, so its `pn→pn` cell is
+plausibly inflated at the image level in a way no other encoder's is. That biases
+the shift downward, which makes **−0.086 an upper bound on its penalty, not a
+point estimate.** See below.
 
 **The deployment direction — train on Pl@ntNet, test on iNaturalist — is the
 column that matters, because it is the one this repo ships.** BioCLIP-2 pays
@@ -96,6 +102,7 @@ argmax.
 | encoder | Pl@ntNet species | iNat species | shift | Pl@ntNet genus | iNat genus | genus shift |
 |---|---|---|---|---|---|---|
 | `bioclip2` | 0.7633 | 0.7601 | **−0.003** [−0.029, +0.020] | 0.9487 | 0.9221 | −0.027 [−0.042, −0.014] |
+| `plantclef24` | **0.7757** | 0.6748 | **−0.101** [−0.128, −0.075] | 0.9601 | 0.8792 | −0.081 [−0.099, −0.065] |
 | `bioclip1_cml4` | 0.7104 | 0.6133 | **−0.097** [−0.119, −0.074] | 0.9042 | 0.8023 | −0.102 [−0.120, −0.084] |
 | `mobileclip2_s2` | 0.6453 | 0.4844 | **−0.161** [−0.187, −0.137] | 0.8551 | 0.6698 | −0.185 [−0.209, −0.163] |
 
@@ -120,6 +127,40 @@ shift and adds nothing of its own.
 > Masked-argmax identification plus the `__OTHER__` mass is what can be measured
 > leak-free, and it is reported above.
 
+## The 43 MB middle ground pays, and it is the clearest case in the table
+
+`plantclef24` was excluded from the pre-registered encoder set and then measured
+anyway, because it is the middle of the open size decision and reading a number
+off the trend between 46 MB and 152 MB would have been guesswork. It needed
+three fresh embedding passes at 518px; they are now on disk.
+
+It pays **−0.086 [−0.119, −0.055]** on the deployment direction, −0.069 after
+organ matching, and −0.101 with the shipped head. Every measurement excludes
+zero. It sits with the ViT-Bs, not with BioCLIP-2.
+
+**And it is the one encoder where the mechanism is visible directly.** With the
+shipped head it is the *best* encoder measured on Pl@ntNet — 0.7757 species,
+ahead of BioCLIP-2's 0.7633 — and 8.5pp behind BioCLIP-2 on iNaturalist
+(0.6748 against 0.7601). Its entire deficit is a cross-source deficit. That is
+what fine-tuning on 7,806 Pl@ntNet species buys and what it costs: within-source
+strength that does not travel.
+
+Which is also why the number is an **upper bound rather than a point estimate**.
+The same fine-tuning that produces the strong Pl@ntNet cell plausibly inflates it
+at the image level, and an inflated `pn→pn` makes the measured shift more
+negative than the truth. The true penalty is somewhere in `[0, 0.086]`. It is
+bounded, not resolved, and the direction of the bias is known.
+
+Its `__OTHER__` mass also moves the most of any encoder — 0.0053 → 0.0198, a
+factor of 3.7 against BioCLIP-2's 1.9 — though still small in absolute terms.
+
+> **This does not contradict `EMBEDDED_FINDINGS.md`**, where `plantclef24` was
+> 1.5pp behind BioCLIP-2 on iNaturalist photographs. That comparison was 20
+> Oregon species; this one is 465. Both test on iNaturalist, so the difference
+> between −1.5pp and −8.5pp is not about source — it is that `plantclef24`'s
+> deficit to BioCLIP-2 **grows with label-space size**. Worth knowing before the
+> catalogue grows, and a separate question from the one this document tests.
+
 ## Robustness: it is not the organ mix, and the mix is not what it looks like
 
 The pre-registration named organ mix as a confound that could *manufacture* an
@@ -143,6 +184,7 @@ therefore makes it **harder**, not easier.
 | encoder | deployment shift, pooled | deployment shift, organ-matched |
 |---|---|---|
 | `bioclip2` | −0.001 [−0.029, +0.027] | **+0.017 [−0.010, +0.045]** |
+| `plantclef24` | −0.086 [−0.119, −0.055] | −0.069 [−0.101, −0.036] |
 | `bioclip1` | −0.100 [−0.129, −0.072] | −0.065 [−0.094, −0.036] |
 | `mobileclip2_s2` | −0.179 [−0.208, −0.148] | −0.149 [−0.179, −0.119] |
 
@@ -209,22 +251,28 @@ the Tier 1 gap in `DATA_STRATEGY.md`.** Herbarium 2022 and self-collected field
 photographs remain the candidates for that, and this document should not be cited
 as having retired them.
 
-**`plantclef24` is absent, and it is the open product choice.** The
-encoder-scale table invites reading a 43 MB number off the trend between 46 MB
-(−0.100) and 152 MB (−0.001). Do not. `plantclef24` is fine-tuned on 7,806
-Pl@ntNet species, which is why it was excluded — the two sides of this
-comparison are not exchangeable for it — and it is exactly why its
-Pl@ntNet→iNaturalist behaviour could be unlike a generic ViT-B's in either
-direction. Measuring it needs a catalogue and an iNaturalist embedding pass in
-this format, and until then the middle of the size decision has no source-shift
-number.
-
 Two narrower limits worth naming. Pl@ntNet photographs are organ-framed
 close-ups by construction, so part of what is measured here is framing
 convention rather than camera and hand — a real component of acquisition shift,
 but narrower than the thing the Tier 1 entry asks for. And both corpora are
 citizen-science apps, so the photographic culture is shared even where the
 platform is not.
+
+## For the size decision
+
+The three-way choice in `CLAUDE.md` now has a source-shift column, and it does
+not split the way byte order does:
+
+| build | size | deployment shift |
+|---|---|---|
+| BioCLIP-2 int4 | 152–160 MB | **−0.001** [−0.029, +0.027] |
+| `plantclef24` | 43 MB | −0.086 [−0.119, −0.055], upper bound |
+| MobileCLIP2-S2 | 17.9 MB | −0.179 [−0.208, −0.148] |
+
+This does not decide the question — it is one axis among accuracy, latency,
+hazard safety and app size, and it is still a product judgement. What it removes
+is the option of treating the 43 MB build as a small accuracy concession. On
+this catalogue, in the direction that ships, it is not.
 
 ## For the tool
 
@@ -240,13 +288,18 @@ Two things narrowcast should carry:
    (`CONTAMINATION_FINDINGS.md`), and 16–18pp here with catalogue and head held
    fixed. A small encoder's headline accuracy is not merely lower, it is *less
    durable*, and nothing in a single-source evaluation reveals that.
+3. **An encoder fine-tuned on the evaluation corpus scores like the best model
+   in the table and transfers like a mid-sized one.** `plantclef24` is ahead of
+   BioCLIP-2 on Pl@ntNet and 8.5pp behind it on iNaturalist. A card that names
+   the encoder's training corpus alongside the evaluation corpus would make that
+   legible; one that reports accuracy alone cannot.
 
 ## Reproduce
 
 ```
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift \
     --variants bioclip2 bioclip1 bioclip1_cml4 bioclip2_cml4 \
-               mobileclip2_s2 mobileclip2_s0 bioclip_inat
+               mobileclip2_s2 mobileclip2_s0 bioclip_inat plantclef24
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift --geo-only  --variants bioclip2 bioclip1 mobileclip2_s2
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift --inat-split cell --variants bioclip2 bioclip1 mobileclip2_s2
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift_product \
@@ -255,6 +308,13 @@ PYTHONPATH=. .venv/bin/python -m analysis.domain_shift_organ \
     --variants bioclip2 bioclip1 mobileclip2_s2
 ```
 
-The MobileCLIP2 iNaturalist caches were built for this
-(`.venv-mps/bin/python -c "from plantid.features.embed_inat import main; main('mobileclip2_s2')"`);
-everything else was already on disk.
+Two encoders needed fresh caches; everything else was already on disk. From
+`.venv-mps`:
+
+```python
+from plantid.features import embed_catalog, embed_inat, embed_background
+for v in ("mobileclip2_s2", "mobileclip2_s0"):
+    embed_inat.main(v)                       # catalogue and background existed
+for f in (embed_catalog.main, embed_inat.main, embed_background.main):
+    f("plantclef24")                         # 82k images at 518px, ~65 min on MPS
+```
