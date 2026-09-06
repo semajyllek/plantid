@@ -1,4 +1,8 @@
-# plantid
+# narrowcast-plantid
+
+*Formerly `plantid`. The Python package keeps that name — hyphens are illegal in
+module names — so `import plantid` and `python -m plantid.eval.rejection` are
+unchanged, and GitHub redirects the old repository URL.*
 
 Multi-organ plant species identification. Given one or more photos of a plant —
 leaf, flower, and optionally bark — name the species, name the genus, or say
@@ -124,8 +128,8 @@ comparisons between arms are sound. See
 ## Layout
 
 ```
-plantid/
-├── plantid/
+narrowcast-plantid/
+├── plantid/         # the Python package — name unchanged by the repo rename
 │   ├── data/        # catalogue + background construction, iNat fetch, curation
 │   ├── features/    # frozen-encoder embedding, descriptor cache
 │   ├── matching/    # k-NN matcher + late fusion (v1)

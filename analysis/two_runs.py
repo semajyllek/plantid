@@ -99,7 +99,7 @@ def build_relabelled(src_cache: Path, dst: Path):
 
 
 if __name__ == "__main__":
-    live = Path("/Users/jameskelly/Documents/plantid/data/processed")
+    live = Path("/Users/jameskelly/Documents/narrowcast-plantid/data/processed")
     out = [run(live, "CURRENT — 497-species catalogue, post top-up")]
     out.append(run(SC / "cache_pre247", "CONTROL A — pre-top-up manifest, today's code"))
     build_relabelled(live, SC / "cache_syn")

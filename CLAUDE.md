@@ -1,14 +1,19 @@
-# plantid — orientation for a new session
+# narrowcast-plantid — orientation for a new session
 
 On-device plant identification for Europe / North America. A **490-class curated
 catalogue** over frozen BioCLIP embeddings, with a three-way answer: name the
 species, name the genus, or decline.
 
-## Three repos, and which is which
+> **Renamed from `plantid`.** The Python package is still `plantid` — hyphens are
+> illegal in module names — so `import plantid` and
+> `PYTHONPATH=. python -m plantid.eval.rejection` are unchanged, as are all paths
+> under `plantid/`. GitHub redirects the old repository URL.
+
+## Four repos, and which is which
 
 | repo | is | note |
 |---|---|---|
-| **plantid** (here) | the research record | 28 findings/prereg docs, 129 tests. Evidence only. |
+| **narrowcast-plantid** (here) | the research record, and where the tool came from | 28 findings/prereg docs, 129 tests. Evidence only. Consumes the installed package in `analysis/headroom_arms.py`. |
 | [**narrowcast**](https://github.com/semajyllek/narrowcast) | the tool, pip-installable | domain-general, 65 tests, CI. `fit / plan / build / card / encoders` |
 | [**narrowcast-kws**](https://github.com/semajyllek/narrowcast-kws) | audio demo | consumes the *installed package*; ESC-50 + Speech Commands |
 | [**narrowcast-derm**](https://github.com/semajyllek/narrowcast-derm) | medical-image demo | Fitzpatrick17k + DINOv2. Preregistered; found that `1.8 ×` omits `p_ood` |
