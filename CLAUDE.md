@@ -109,8 +109,9 @@ These exist because things failed without them. Follow them.
   property of the photographs.** Survives organ-matching and a geographic split.
   ~~`plantclef24` is *not* measured and must not be interpolated from the
   trend.~~ **Now measured: −0.086 [−0.119, −0.055]**, and it is an *upper bound* —
-  fine-tuning on 7,806 Pl@ntNet species plausibly inflates its within-source
-  cell, which biases the shift downward. It is the best encoder measured on
+  fine-tuning on 7,806 Pl@ntNet species plausibly inflates whichever cell is
+  scored on Pl@ntNet, so the deployment shift is bounded above and the reverse
+  shift (−0.160) below. It is the best encoder measured on
   Pl@ntNet (0.7757, ahead of BioCLIP-2's 0.7633) and 8.5pp behind BioCLIP-2 on
   iNaturalist. Its whole deficit is a cross-source deficit.
 - **Cosine does not predict accuracy.** Checked three times: it under-predicted

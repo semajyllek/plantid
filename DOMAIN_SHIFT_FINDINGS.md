@@ -45,10 +45,20 @@ macro-averaged over species; paired species-cluster bootstrap, 2,000 resamples.
 | `mobileclip2_s0` | 0.5130 | 0.3499 | 0.4281 | 0.3394 | **−0.163** [−0.194, −0.133] | −0.089 [−0.117, −0.060] |
 | `mobileclip2_s2` (17.9 MB) | 0.5827 | 0.4045 | 0.5069 | 0.4123 | **−0.179** [−0.208, −0.148] | −0.095 [−0.125, −0.064] |
 
-† `plantclef24` is fine-tuned on 7,806 Pl@ntNet species, so its `pn→pn` cell is
-plausibly inflated at the image level in a way no other encoder's is. That biases
-the shift downward, which makes **−0.086 an upper bound on its penalty, not a
-point estimate.** See below.
+† `plantclef24` is fine-tuned on 7,806 Pl@ntNet species, so **whichever cell is
+scored on Pl@ntNet is plausibly inflated** at the image level in a way no other
+encoder's is. That cuts both ways and must be read per column: it inflates
+`pn→pn`, so **−0.086 is an upper bound** on the deployment penalty; it also
+inflates `inat→pn`, so **−0.160 is a lower bound** on the reverse penalty. See
+below.
+
+*Two coincidences in this table are coincidences, checked.* `pn→inat` and
+`inat→pn` agree to three decimals for `bioclip1`, `bioclip1_cml4` and
+`plantclef24`, which looks like an aliasing bug. It is not: the two cells are
+computed from different heads on different test sets (4,934 Pl@ntNet against
+4,750 iNaturalist photographs), and their per-species vectors differ on 338 of
+359 species with a mean absolute difference of 0.22 and a correlation of 0.48.
+Equal macro means, different measurements.
 
 **The deployment direction — train on Pl@ntNet, test on iNaturalist — is the
 column that matters, because it is the one this repo ships.** BioCLIP-2 pays
@@ -145,14 +155,22 @@ ahead of BioCLIP-2's 0.7633 — and 8.5pp behind BioCLIP-2 on iNaturalist
 what fine-tuning on 7,806 Pl@ntNet species buys and what it costs: within-source
 strength that does not travel.
 
-Which is also why the number is an **upper bound rather than a point estimate**.
-The same fine-tuning that produces the strong Pl@ntNet cell plausibly inflates it
-at the image level, and an inflated `pn→pn` makes the measured shift more
-negative than the truth. The true penalty is somewhere in `[0, 0.086]`. It is
-bounded, not resolved, and the direction of the bias is known.
+Which is also why these are **bounds rather than point estimates**, and why the
+direction has to be read per column. The fine-tuning inflates whichever cell is
+scored on Pl@ntNet:
 
-Its `__OTHER__` mass also moves the most of any encoder — 0.0053 → 0.0198, a
-factor of 3.7 against BioCLIP-2's 1.9 — though still small in absolute terms.
+- it inflates `pn→pn`, so the deployment shift is more negative than the truth —
+  the true penalty lies in `[0, 0.086]`;
+- it inflates `inat→pn`, so the reverse shift is *less* negative than the truth —
+  the true reverse penalty is **at least** 0.160.
+
+That matters for the "train on the harder corpus" reading above, where
+`plantclef24` is the strongest-looking case: the bias runs in the direction that
+strengthens it, not the one that manufactures it.
+
+Its `__OTHER__` mass also moves the most of any encoder — +0.0145, against
+BioCLIP-2's +0.0035 and S2's +0.0027 — though all three are small in absolute
+terms.
 
 > **This does not contradict `EMBEDDED_FINDINGS.md`**, where `plantclef24` was
 > 1.5pp behind BioCLIP-2 on iNaturalist photographs. That comparison was 20
