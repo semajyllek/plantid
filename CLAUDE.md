@@ -186,8 +186,15 @@ accuracy pinned at 0.659, only the *group column* varying — group answers move
 0.022 → 0.417 and coverage 0.200 → 0.500. The grouping alone moves the product.
 
 Two honest qualifications. Headroom is *nearly* but not exactly the quantity
-(`b + c = −0.038`, CI excludes zero — fine accuracy weighs ~19% more), and below
-the 0.889 break-even retreat is suppressed rather than eliminated.
+(raw `b + c = +0.430`, CI excludes zero — coarse accuracy weighs ~25% more), and
+below the 0.889 break-even retreat is suppressed rather than eliminated. These
+are one story: coarse gets a second bite through the threshold. The rule
+**under-predicts at high headroom** — off-domain MAE is 0.058 on the arms that
+actually retreat, worst case 0.136 — so treat `1.8 ×` as a floor.
+
+Test that comparison in **raw** units, not standardised: with unequal SDs,
+`b + c = 0` on z-scores tests a different hypothesis and reports the asymmetry
+with the wrong sign. It did, in a first draft.
 
 **Headroom predicts retreat, not harm.** `kws acoustic` is not a counterexample:
 its group answers came out of *declines* so coverage inflated harmlessly, while

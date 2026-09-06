@@ -456,7 +456,12 @@ def analyse(path):
     for name, cols in models.items():
         print(f"      {name:9s} {_cv_r2(d, cols, folds):+.4f}")
 
-    full = LinearRegression().fit(d[["z_fine", "z_coarse"]], d["group_share"])
+    # RAW units, deliberately. "Only the difference matters" means the raw
+    # coefficients are equal and opposite; on predictors standardised by their own
+    # SDs that is b/sigma_fine = -c/sigma_coarse, which reduces to b + c = 0 only
+    # when the SDs match. They do not here (0.129 vs 0.087), and the standardised
+    # version reports this asymmetry with the *wrong sign*.
+    full = LinearRegression().fit(d[["fine", "coarse"]], d["group_share"])
     b, c = full.coef_
     rng = np.random.default_rng(0)
     sets = d["set_shape"].unique()
@@ -464,12 +469,13 @@ def analyse(path):
     boots = []
     for _ in range(2000):
         pick = np.concatenate([idx[s] for s in rng.choice(sets, len(sets), replace=True)])
-        m = LinearRegression().fit(d.iloc[pick][["z_fine", "z_coarse"]],
+        m = LinearRegression().fit(d.iloc[pick][["fine", "coarse"]],
                                    d.iloc[pick]["group_share"])
         boots.append(m.coef_[0] + m.coef_[1])
     lo, hi = np.percentile(boots, [2.5, 97.5])
-    print(f"      b(fine)={b:+.4f}  c(coarse)={c:+.4f}  b+c={b+c:+.4f} "
-          f"CI [{lo:+.4f}, {hi:+.4f}]  (0 => headroom parameterisation survives)")
+    print(f"      raw b(fine)={b:+.4f}  c(coarse)={c:+.4f}  b+c={b+c:+.4f} "
+          f"CI [{lo:+.4f}, {hi:+.4f}]  (0 => headroom parameterisation exact)")
+    print(f"      sigma_fine={d['fine'].std():.4f} sigma_coarse={d['coarse'].std():.4f}")
 
     # P3 -- the break-even threshold
     print(f"\nP3  group-answer share either side of coarse = {BREAKEVEN:.3f}")

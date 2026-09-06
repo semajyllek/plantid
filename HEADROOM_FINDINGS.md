@@ -74,11 +74,23 @@ Headroom, a *single* number, recovers 97% of what the two-predictor model
 achieves. The declared null — headroom adds nothing over fine accuracy — fails by
 a factor of 2.4 in explained variance.
 
-The qualification: standardised, `b(fine) = −0.226` and `c(coarse) = +0.189`, so
-`b + c = −0.038` with a cluster-bootstrap CI of **[−0.046, −0.029]** that
-excludes zero. A pure difference would give `b = −c` exactly. Fine accuracy
-carries about 19% more weight than coarse, so **headroom is very nearly, but not
-exactly, the governing quantity.**
+The qualification, in raw units: `b(fine) = −1.749` and `c(coarse) = +2.178`, so
+`b + c = +0.430` with a cluster-bootstrap CI of **[+0.373, +0.499]** that
+excludes zero. A pure difference would give `b = −c` exactly. **Coarse accuracy
+carries about 25% more weight than fine**, so headroom is very nearly, but not
+exactly, the governing quantity.
+
+> The test must be run in **raw** units. Standardising each predictor by its own
+> SD and testing `b + c = 0` tests a different hypothesis — equal-and-opposite
+> raw coefficients means `b/σ_fine = −c/σ_coarse`, which only reduces to
+> `b + c = 0` when the SDs match. Here they do not (σ_fine 0.129, σ_coarse
+> 0.087), and the standardised version reports the asymmetry with the **wrong
+> sign**. An earlier draft of this doc did exactly that and claimed fine accuracy
+> carried more weight; it carries less.
+
+The direction matters, because it makes the two qualifications one story rather
+than two: coarse accuracy gets a second bite through the break-even threshold in
+P3 below, and that is where the extra weight comes from.
 
 This is not attenuation: `corr(headroom_calib, headroom_test) = +0.978`, so the
 predictor measured on calibration is not a noisy proxy for the arm being scored.
@@ -133,11 +145,16 @@ nine published text, audio and bird arms:
 | esc50-crowded | 0.092 | 0.200 | 0.167 |
 | birds-crowded | 0.095 | 0.235 | 0.173 |
 
-**MAE 0.033** on domains the rule never saw. The plant slope is +1.81 and the
-audio slope, fitted independently, is +1.94.
+MAE is **0.033** over all nine — but four of them have headroom 0.000 and cost
+nothing to predict. **On the five arms with nonzero headroom, MAE is 0.058**, and
+the largest-effect arm is the worst: `text-crowded` is under-predicted by
+**0.136** (0.603 actual against 0.467). The plant slope is +1.81 and the audio
+slope, fitted independently, is +1.94.
 
 As a usable approximation: **group-answer share ≈ 1.8 × headroom**, measurable on
-calibration data before you know what the deployment will answer.
+calibration data before you know what the deployment will answer — with the
+caveat that it **under-predicts at high headroom**, so it is a floor rather than
+an estimate in exactly the regime where retreat matters most.
 
 ## The published contrast, for continuity
 
