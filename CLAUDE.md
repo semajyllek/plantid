@@ -149,10 +149,17 @@ guarantee.
 comparisons, ablations, the head-to-head. They reproduce claims in the findings
 docs.
 
-**Published write-ups** (private artifacts):
-[experimental record](https://claude.ai/code/artifact/e1115322-7231-4726-956e-1ef9391cb0f0) ·
-[project status](https://claude.ai/code/artifact/28638d03-1b2f-4956-be5e-7675a57d37e0) ·
-[what the data looks like](https://claude.ai/code/artifact/e4a5ddab-765e-42c0-9891-320e1f198e99)
+**Published write-ups** (private artifacts). The first two are current and carry the
+source-shift result; update those, not the three dated snapshots below them.
+
+- [technical deep dive](https://claude.ai/code/artifact/57e63fd1-a30f-4da3-8965-cc1b8738459c)
+  — the reference document, 16 sections. §15 is the source-shift 2×2.
+- [status, September 2026](https://claude.ai/code/artifact/5c4c24d8-30d4-46f8-b58a-577017038c5e)
+  — the tool direction, with the caveat now on the small-encoder frontier.
+- Superseded snapshots:
+  [experimental record](https://claude.ai/code/artifact/e1115322-7231-4726-956e-1ef9391cb0f0) ·
+  [project status](https://claude.ai/code/artifact/28638d03-1b2f-4956-be5e-7675a57d37e0) ·
+  [what the data looks like](https://claude.ai/code/artifact/e4a5ddab-765e-42c0-9891-320e1f198e99)
 
 ## Closed — do not redo these
 
