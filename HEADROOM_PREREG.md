@@ -141,6 +141,43 @@ The test is only run if **at least 20% of arms have coarse accuracy below
 conclusion about rival predictors may be drawn from it. If the condition fails,
 that fact is reported and the analysis is not run.
 
+## Amendment 1 — the admissibility condition failed, and what was changed
+
+**The first sweep (929 arms) failed its own admissibility gate and the analysis
+was not run.** Recorded here before re-running, and before any outcome was
+looked at.
+
+    admissibility: 18.4% of arms have coarse < 0.889 (need >= 20%) -> FAIL
+    coarse accuracy spans [0.540, 1.000], fine [0.521, 1.000]
+    corr(fine, headroom) = -0.778   corr(coarse, headroom) = +0.159
+
+`analyse()` returns before computing anything about group-answer share, coverage
+or label share, so what has been seen is the predictor distribution and this
+crosstab — nothing about how any arm behaved:
+
+    grouping    >= 0.889   < 0.889
+    genus            120         0
+    kmeans           506        54
+    random           125       115
+    published          7         2
+
+Two things this shows, both arguing for the same change:
+
+1. The gate failed by 1.6pp, so the sweep has not clearly escaped the published
+   collinearity — though `corr(fine, headroom) = −0.778` is already far from the
+   near-perfect collinearity the published five arms have.
+2. **Below the break-even the region is dominated by the incoherent control**:
+   115 `random` arms against 54 `kmeans` and no `genus` at all. Even had the gate
+   passed, P3 would have been confounded with group coherence, which is the
+   failure mode this design exists to avoid.
+
+**Amendment**: extend the coherent grouping grid — `KMEANS_GRID` to
+`[2, 5, 10, 20, 30, 40, 50, 70, 90]` and `K_GRID` to include 100 — so that
+*coherent* groupings populate the sub-break-even region. Nothing else changes: no
+outcome, no model, no threshold, no utility. The gate stays at 20% and is
+re-evaluated on the new sweep; if it fails again the analysis stays unrun and
+that is the reported result.
+
 ## Known limitations, stated in advance
 
 Most arms are plants through one image pipeline; the out-of-domain arms are the

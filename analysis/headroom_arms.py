@@ -51,11 +51,11 @@ OOD_MIX = {"near_ood": 0.32, "distant_ood": 0.68}
 BG_TRAIN_FRAC = 0.6
 N_SPLITS = 5              # per-arm outcomes are averaged over this many calib/test splits
 ENCODERS = ["bioclip2", "bioclip1", "bioclip1_cml4", "mobileclip2_s0", "bioclip_inat"]
-K_GRID = [14, 30, 60]
+K_GRID = [14, 30, 60, 100]
 # Extended past 30 so coherent groupings, not only the incoherent `random` ones,
 # populate the region below the break-even. Otherwise the threshold test in P3 is
 # confounded with group coherence.
-KMEANS_GRID = [2, 5, 10, 20, 30, 40, 50]
+KMEANS_GRID = [2, 5, 10, 20, 30, 40, 50, 70, 90]
 RANDOM_GRID = [5, 10]
 
 # The group answer's break-even under UTILITY: 0.5*p - 4*(1-p) > 0.
