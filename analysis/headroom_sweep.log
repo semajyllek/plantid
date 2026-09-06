@@ -1,0 +1,219 @@
+break-even for a group answer under UTILITY: 0.8889
+
+plant arms:
+  bioclip2        varied-K14-0     6 groupings
+  bioclip2        varied-K14-1     6 groupings
+  bioclip2        varied-K14-2     6 groupings
+  bioclip2        varied-K14-3     6 groupings
+  bioclip2        crowded-K14-0    6 groupings
+  bioclip2        crowded-K14-1    6 groupings
+  bioclip2        crowded-K14-2    6 groupings
+  bioclip2        crowded-K14-3    6 groupings
+  bioclip2        varied-K30-0     7 groupings
+  bioclip2        varied-K30-1     7 groupings
+  bioclip2        varied-K30-2     7 groupings
+  bioclip2        varied-K30-3     7 groupings
+  bioclip2        crowded-K30-0    7 groupings
+  bioclip2        crowded-K30-1    7 groupings
+  bioclip2        crowded-K30-2    7 groupings
+  bioclip2        crowded-K30-3    7 groupings
+  bioclip2        varied-K60-0     10 groupings
+  bioclip2        varied-K60-1     10 groupings
+  bioclip2        varied-K60-2     10 groupings
+  bioclip2        varied-K60-3     10 groupings
+  bioclip2        crowded-K60-0    10 groupings
+  bioclip2        crowded-K60-1    10 groupings
+  bioclip2        crowded-K60-2    10 groupings
+  bioclip2        crowded-K60-3    10 groupings
+  bioclip2        varied-K100-0    12 groupings
+  bioclip2        varied-K100-1    12 groupings
+  bioclip2        varied-K100-2    12 groupings
+  bioclip2        varied-K100-3    12 groupings
+  bioclip2        crowded-K100-0   12 groupings
+  bioclip2        crowded-K100-1   12 groupings
+  bioclip2        crowded-K100-2   12 groupings
+  bioclip2        crowded-K100-3   12 groupings
+  bioclip1        varied-K14-0     6 groupings
+  bioclip1        varied-K14-1     6 groupings
+  bioclip1        varied-K14-2     6 groupings
+  bioclip1        varied-K14-3     6 groupings
+  bioclip1        crowded-K14-0    6 groupings
+  bioclip1        crowded-K14-1    6 groupings
+  bioclip1        crowded-K14-2    6 groupings
+  bioclip1        crowded-K14-3    6 groupings
+  bioclip1        varied-K30-0     7 groupings
+  bioclip1        varied-K30-1     7 groupings
+  bioclip1        varied-K30-2     7 groupings
+  bioclip1        varied-K30-3     7 groupings
+  bioclip1        crowded-K30-0    7 groupings
+  bioclip1        crowded-K30-1    7 groupings
+  bioclip1        crowded-K30-2    7 groupings
+  bioclip1        crowded-K30-3    7 groupings
+  bioclip1        varied-K60-0     10 groupings
+  bioclip1        varied-K60-1     10 groupings
+  bioclip1        varied-K60-2     10 groupings
+  bioclip1        varied-K60-3     10 groupings
+  bioclip1        crowded-K60-0    10 groupings
+  bioclip1        crowded-K60-1    10 groupings
+  bioclip1        crowded-K60-2    10 groupings
+  bioclip1        crowded-K60-3    10 groupings
+  bioclip1        varied-K100-0    12 groupings
+  bioclip1        varied-K100-1    12 groupings
+  bioclip1        varied-K100-2    12 groupings
+  bioclip1        varied-K100-3    12 groupings
+  bioclip1        crowded-K100-0   12 groupings
+  bioclip1        crowded-K100-1   12 groupings
+  bioclip1        crowded-K100-2   12 groupings
+  bioclip1        crowded-K100-3   12 groupings
+  bioclip1_cml4   varied-K14-0     6 groupings
+  bioclip1_cml4   varied-K14-1     6 groupings
+  bioclip1_cml4   varied-K14-2     6 groupings
+  bioclip1_cml4   varied-K14-3     6 groupings
+  bioclip1_cml4   crowded-K14-0    6 groupings
+  bioclip1_cml4   crowded-K14-1    6 groupings
+  bioclip1_cml4   crowded-K14-2    6 groupings
+  bioclip1_cml4   crowded-K14-3    6 groupings
+  bioclip1_cml4   varied-K30-0     7 groupings
+  bioclip1_cml4   varied-K30-1     7 groupings
+  bioclip1_cml4   varied-K30-2     7 groupings
+  bioclip1_cml4   varied-K30-3     7 groupings
+  bioclip1_cml4   crowded-K30-0    7 groupings
+  bioclip1_cml4   crowded-K30-1    7 groupings
+  bioclip1_cml4   crowded-K30-2    7 groupings
+  bioclip1_cml4   crowded-K30-3    7 groupings
+  bioclip1_cml4   varied-K60-0     10 groupings
+  bioclip1_cml4   varied-K60-1     10 groupings
+  bioclip1_cml4   varied-K60-2     10 groupings
+  bioclip1_cml4   varied-K60-3     10 groupings
+  bioclip1_cml4   crowded-K60-0    10 groupings
+  bioclip1_cml4   crowded-K60-1    10 groupings
+  bioclip1_cml4   crowded-K60-2    10 groupings
+  bioclip1_cml4   crowded-K60-3    10 groupings
+  bioclip1_cml4   varied-K100-0    12 groupings
+  bioclip1_cml4   varied-K100-1    12 groupings
+  bioclip1_cml4   varied-K100-2    12 groupings
+  bioclip1_cml4   varied-K100-3    12 groupings
+  bioclip1_cml4   crowded-K100-0   12 groupings
+  bioclip1_cml4   crowded-K100-1   12 groupings
+  bioclip1_cml4   crowded-K100-2   12 groupings
+  bioclip1_cml4   crowded-K100-3   12 groupings
+  mobileclip2_s0  varied-K14-0     6 groupings
+  mobileclip2_s0  varied-K14-1     6 groupings
+  mobileclip2_s0  varied-K14-2     6 groupings
+  mobileclip2_s0  varied-K14-3     6 groupings
+  mobileclip2_s0  crowded-K14-0    6 groupings
+  mobileclip2_s0  crowded-K14-1    6 groupings
+  mobileclip2_s0  crowded-K14-2    6 groupings
+  mobileclip2_s0  crowded-K14-3    6 groupings
+  mobileclip2_s0  varied-K30-0     7 groupings
+  mobileclip2_s0  varied-K30-1     7 groupings
+  mobileclip2_s0  varied-K30-2     7 groupings
+  mobileclip2_s0  varied-K30-3     7 groupings
+  mobileclip2_s0  crowded-K30-0    7 groupings
+  mobileclip2_s0  crowded-K30-1    7 groupings
+  mobileclip2_s0  crowded-K30-2    7 groupings
+  mobileclip2_s0  crowded-K30-3    7 groupings
+  mobileclip2_s0  varied-K60-0     10 groupings
+  mobileclip2_s0  varied-K60-1     10 groupings
+  mobileclip2_s0  varied-K60-2     10 groupings
+  mobileclip2_s0  varied-K60-3     10 groupings
+  mobileclip2_s0  crowded-K60-0    10 groupings
+  mobileclip2_s0  crowded-K60-1    10 groupings
+  mobileclip2_s0  crowded-K60-2    10 groupings
+  mobileclip2_s0  crowded-K60-3    10 groupings
+  mobileclip2_s0  varied-K100-0    12 groupings
+  mobileclip2_s0  varied-K100-1    12 groupings
+  mobileclip2_s0  varied-K100-2    12 groupings
+  mobileclip2_s0  varied-K100-3    12 groupings
+  mobileclip2_s0  crowded-K100-0   12 groupings
+  mobileclip2_s0  crowded-K100-1   12 groupings
+  mobileclip2_s0  crowded-K100-2   12 groupings
+  mobileclip2_s0  crowded-K100-3   12 groupings
+  bioclip_inat    varied-K14-0     6 groupings
+  bioclip_inat    varied-K14-1     6 groupings
+  bioclip_inat    varied-K14-2     6 groupings
+  bioclip_inat    varied-K14-3     6 groupings
+  bioclip_inat    crowded-K14-0    6 groupings
+  bioclip_inat    crowded-K14-1    6 groupings
+  bioclip_inat    crowded-K14-2    6 groupings
+  bioclip_inat    crowded-K14-3    6 groupings
+  bioclip_inat    varied-K30-0     7 groupings
+  bioclip_inat    varied-K30-1     7 groupings
+  bioclip_inat    varied-K30-2     7 groupings
+  bioclip_inat    varied-K30-3     7 groupings
+  bioclip_inat    crowded-K30-0    7 groupings
+  bioclip_inat    crowded-K30-1    7 groupings
+  bioclip_inat    crowded-K30-2    7 groupings
+  bioclip_inat    crowded-K30-3    7 groupings
+  bioclip_inat    varied-K60-0     10 groupings
+  bioclip_inat    varied-K60-1     10 groupings
+  bioclip_inat    varied-K60-2     10 groupings
+  bioclip_inat    varied-K60-3     10 groupings
+  bioclip_inat    crowded-K60-0    10 groupings
+  bioclip_inat    crowded-K60-1    10 groupings
+  bioclip_inat    crowded-K60-2    10 groupings
+  bioclip_inat    crowded-K60-3    10 groupings
+  bioclip_inat    varied-K100-0    12 groupings
+  bioclip_inat    varied-K100-1    12 groupings
+  bioclip_inat    varied-K100-2    12 groupings
+  bioclip_inat    varied-K100-3    12 groupings
+  bioclip_inat    crowded-K100-0   12 groupings
+  bioclip_inat    crowded-K100-1   12 groupings
+  bioclip_inat    crowded-K100-2   12 groupings
+  bioclip_inat    crowded-K100-3   12 groupings
+
+out-of-domain arms (published, re-scored):
+  text-varied        fine=0.931 coarse=0.931 headroom=+0.000
+  text-crowded       fine=0.743 coarse=1.000 headroom=+0.257
+  kws-sem-varied     fine=0.888 coarse=0.888 headroom=+0.000
+  kws-sem-crowded    fine=0.895 coarse=0.941 headroom=+0.047
+  kws-ac-varied      fine=0.889 coarse=0.889 headroom=+0.000
+  kws-ac-crowded     fine=0.892 coarse=0.976 headroom=+0.084
+  esc50-varied       fine=1.000 coarse=1.000 headroom=+0.000
+  esc50-crowded      fine=0.900 coarse=0.992 headroom=+0.092
+  birds-crowded      fine=0.902 coarse=0.997 headroom=+0.095
+
+wrote data/processed/headroom_arms.csv: 1409 arms
+1409 arms, 169 label sets, 4 domains
+
+admissibility: 20.6% of arms have coarse < 0.889 (need >= 20%) -> PASS
+coarse accuracy spans [0.540, 1.000], fine [0.521, 1.000]
+corr(fine, headroom) = -0.755   corr(coarse, headroom) = +0.200
+
+grouping x break-even (n arms):
+coarse     >= 0.889  < 0.889
+grouping                    
+genus           159        1
+kmeans          804      116
+published         7        2
+random          149      171
+
+corr(headroom_calib, headroom_test) = +0.978
+
+P1  arms with |headroom| < 0.01: n=158, mean group share 0.0139, max 0.1125
+
+P2  grouped 5-fold CV R^2 on group-answer share
+      M_fine    +0.3617
+      M_coarse  +0.1134
+      M_head    +0.8829
+      M_full    +0.9105
+      b(fine)=-0.2262  c(coarse)=+0.1886  b+c=-0.0376 CI [-0.0459, -0.0285]  (0 => headroom parameterisation survives)
+
+P3  group-answer share either side of coarse = 0.889
+      coarse <  break-even: n= 290  mean group share 0.0935   | of those with headroom>0.15: n=  56, 0.2629
+      coarse >= break-even: n=1119  mean group share 0.2509   | of those with headroom>0.15: n= 409, 0.5282
+
+    median group-answer share, coarse x fine
+fine       <.60  .60-.75  .75-.90   >.90
+coarse                                  
+<.70      0.005    0.014      NaN    NaN
+.70-.80   0.123    0.034    0.006    NaN
+.80-.889  0.277    0.265    0.026    NaN
+.889-.95  0.470    0.407    0.111  0.012
+>.95      0.646    0.591    0.227  0.073
+
+P4  regressing in-catalogue label share on group share
+      all arms  n=1409  corr(group,label)=-0.663  corr(group,decline)=-0.371
+      crowded   n= 705  corr(group,label)=-0.380  corr(group,decline)=-0.821
+      varied    n= 704  corr(group,label)=-0.583  corr(group,decline)=+0.148
+EXIT 0
