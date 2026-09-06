@@ -18,8 +18,8 @@ corpus and reconciling its taxonomy are domain decisions. The seam is
 `--embeddings` format.
 
 Read this first, then `ROADMAP.md` for the plan and the `*_FINDINGS.md` docs for
-evidence. The newest four are `EMBEDDED_FINDINGS`, `OREGON_SAFETY_FINDINGS`,
-`CONTAMINATION_FINDINGS` and `BIRDS_FINDINGS`. **Git history is the chronological record** — commit messages carry the
+evidence. The newest four are `HEADROOM_FINDINGS`, `EMBEDDED_FINDINGS`,
+`OREGON_SAFETY_FINDINGS` and `CONTAMINATION_FINDINGS`. **Git history is the chronological record** — commit messages carry the
 reasoning, the numbers, and the retractions.
 
 ## The one thing that is easy to get wrong
@@ -69,6 +69,14 @@ These exist because things failed without them. Follow them.
 - **Cluster bootstrap, never row-level.** Resample *species* (or *genera* for the
   near-OOD bucket), because ~6 observations share a species. Row-level intervals
   have twice produced effects here that failed to replicate.
+- **Background rows cluster on their real species, not on `__OTHER__`.** They
+  *score* as `__OTHER__`, but giving them that as a clustering identity leaves
+  `make_splits` one cluster for `distant_ood`, puts every negative in test, and
+  fits thresholds on a calibration set with no negatives in it. This silently
+  broke the deployable-coverage table in `EMBEDDED_FINDINGS.md` (retracted in
+  place) and would have broken `HEADROOM_FINDINGS.md`. Same trap in
+  `deployment_weights`: an *absent* bucket leaves its share unclaimed and the
+  whole weighting renormalises to a lower effective prevalence.
 - **Declare utilities before fitting.** Thresholds are fitted by expected-utility
   maximisation with payoffs written down in advance (`eval/rejection.py:UTILITY`),
   never read off a test set.
@@ -166,20 +174,32 @@ while the model gets worse. Replicated across domains and modalities:
 | ESC-50 (audio) | −0.095 | −0.107 |
 | Speech Commands (audio) | −0.027 | −0.077 |
 
-**It does not always fire, and the audio cases are why.** Working hypothesis
-(`narrowcast-kws`): the governing quantity is *headroom* — coarse-rank accuracy
-minus fine-rank accuracy. Large headroom makes retreating to the group attractive
-so coverage inflates; small headroom means retreating buys nothing and the model
-degrades visibly instead. **n=4 arms, one already breaks it — a hypothesis, not
-a finding.**
+**It does not always fire, and the governing quantity is now measured.**
+*Headroom* — coarse-rank accuracy minus fine-rank accuracy — predicts retreat to
+the group rank at **CV R² 0.883** over 1,409 arms, against 0.362 for fine
+accuracy alone (`HEADROOM_FINDINGS.md`). Was a hypothesis at n=4; is now a
+finding. As a rule of thumb, **group-answer share ≈ 1.8 × headroom**, measurable
+on the calibration split.
 
-Practical consequence, already in the tool: the crowded-set warning is a warning
-about a *risk*, not a prediction of harm.
+The controlled comparison is the thing to remember: one fitted head, fine
+accuracy pinned at 0.659, only the *group column* varying — group answers move
+0.022 → 0.417 and coverage 0.200 → 0.500. The grouping alone moves the product.
+
+Two honest qualifications. Headroom is *nearly* but not exactly the quantity
+(`b + c = −0.038`, CI excludes zero — fine accuracy weighs ~19% more), and below
+the 0.889 break-even retreat is suppressed rather than eliminated.
+
+**Headroom predicts retreat, not harm.** `kws acoustic` is not a counterexample:
+its group answers came out of *declines* so coverage inflated harmlessly, while
+text's came out of *label* answers and quality collapsed. Same mechanism, two
+shadows — so the crowded-set warning is still a warning about a *risk*, and no
+report drops the label-level share.
 
 ## Open
 
-- **Test the headroom hypothesis** on more arms. It is the cheapest open question
-  and would either give the tool a predictive rule or kill a nice story.
+- **Teach narrowcast the headroom rule.** `HEADROOM_FINDINGS.md` establishes it;
+  the tool's crowded-set warning still fires on label-set *structure* rather than
+  on measured headroom. Deliberately not changed by the run that measured it.
 - **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
   any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
 - **A clean domain-shift test.** The only untested axis left. Needs photographs
