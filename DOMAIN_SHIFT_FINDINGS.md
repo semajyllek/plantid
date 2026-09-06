@@ -82,7 +82,9 @@ than it reads.
 
 The practical form: **train the head on the harder corpus.** Pl@ntNet's
 organ-framed close-ups look like the less realistic data and produce the more
-transferable head.
+transferable head. "Harder" here does not mean "contains bark" — the
+organ-matched check below holds it after reweighting, and the iNaturalist head
+loses on every organ rather than on one.
 
 ## The shipped head says the same thing
 
@@ -117,6 +119,45 @@ shift and adds nothing of its own.
 > `__OTHER__` was fitted on, so using it as test negatives would be in-sample.
 > Masked-argmax identification plus the `__OTHER__` mass is what can be measured
 > leak-free, and it is reported above.
+
+## Robustness: it is not the organ mix, and the mix is not what it looks like
+
+The pre-registration named organ mix as a confound that could *manufacture* an
+effect. It can also mask one, in the direction that flatters the headline — if
+the within-source control contains hard photo types the cross-source arm does
+not, the measured shift is deflated and "free" would be two offsetting biases
+rather than a null. So the mix was measured rather than assumed, with the
+production router on the iNaturalist test photographs (`analysis/domain_shift_organ.py`):
+
+| | leaf | bark | flower |
+|---|---|---|---|
+| Pl@ntNet test, true labels | 0.458 | **0.036** | 0.506 |
+| iNaturalist test, routed | 0.362 | **0.119** | 0.519 |
+
+The expected imbalance is not there, and the residual one runs the other way:
+this is a herbaceous regional catalogue, so bark is scarce in *Pl@ntNet* — 3.6%
+of its test photographs — while iNaturalist observations route to bark three
+times as often. Reweighting the within-source control to the iNaturalist mix
+therefore makes it **harder**, not easier.
+
+| encoder | deployment shift, pooled | deployment shift, organ-matched |
+|---|---|---|
+| `bioclip2` | −0.001 [−0.029, +0.027] | **+0.017 [−0.010, +0.045]** |
+| `bioclip1` | −0.100 [−0.129, −0.072] | −0.065 [−0.094, −0.036] |
+| `mobileclip2_s2` | −0.179 [−0.208, −0.148] | −0.149 [−0.179, −0.119] |
+
+The null survives matching and the ordering is unchanged. Organ mix accounts for
+roughly a third of the small encoders' penalty and none of BioCLIP-2's.
+
+**The asymmetry is not a missing bark channel either.** BioCLIP-2's reverse shift
+is −0.145 against the organ-matched control, against −0.147 pooled, and the
+iNaturalist-trained head loses on *every* organ of the Pl@ntNet test set rather
+than collapsing on one:
+
+| | leaf | bark | flower |
+|---|---|---|---|
+| `pn→pn` | 0.692 | 0.714 | 0.790 |
+| `inat→pn` | 0.652 | 0.681 | 0.767 |
 
 ## Robustness: the asymmetry is not near-duplicate leakage
 
@@ -168,6 +209,16 @@ the Tier 1 gap in `DATA_STRATEGY.md`.** Herbarium 2022 and self-collected field
 photographs remain the candidates for that, and this document should not be cited
 as having retired them.
 
+**`plantclef24` is absent, and it is the open product choice.** The
+encoder-scale table invites reading a 43 MB number off the trend between 46 MB
+(−0.100) and 152 MB (−0.001). Do not. `plantclef24` is fine-tuned on 7,806
+Pl@ntNet species, which is why it was excluded — the two sides of this
+comparison are not exchangeable for it — and it is exactly why its
+Pl@ntNet→iNaturalist behaviour could be unlike a generic ViT-B's in either
+direction. Measuring it needs a catalogue and an iNaturalist embedding pass in
+this format, and until then the middle of the size decision has no source-shift
+number.
+
 Two narrower limits worth naming. Pl@ntNet photographs are organ-framed
 close-ups by construction, so part of what is measured here is framing
 convention rather than camera and hand — a real component of acquisition shift,
@@ -200,6 +251,8 @@ PYTHONPATH=. .venv/bin/python -m analysis.domain_shift --geo-only  --variants bi
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift --inat-split cell --variants bioclip2 bioclip1 mobileclip2_s2
 PYTHONPATH=. .venv/bin/python -m analysis.domain_shift_product \
     --variants bioclip2 bioclip1_cml4 mobileclip2_s2
+PYTHONPATH=. .venv/bin/python -m analysis.domain_shift_organ \
+    --variants bioclip2 bioclip1 mobileclip2_s2
 ```
 
 The MobileCLIP2 iNaturalist caches were built for this

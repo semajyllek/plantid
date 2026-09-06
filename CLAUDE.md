@@ -24,8 +24,8 @@ corpus and reconciling its taxonomy are domain decisions. The seam is
 `--embeddings` format.
 
 Read this first, then `ROADMAP.md` for the plan and the `*_FINDINGS.md` docs for
-evidence. The newest four are `HEADROOM_FINDINGS`, `EMBEDDED_FINDINGS`,
-`OREGON_SAFETY_FINDINGS` and `CONTAMINATION_FINDINGS`. **Git history is the chronological record** — commit messages carry the
+evidence. The newest four are `DOMAIN_SHIFT_FINDINGS`, `HEADROOM_FINDINGS`,
+`EMBEDDED_FINDINGS` and `CONTAMINATION_FINDINGS`. **Git history is the chronological record** — commit messages carry the
 reasoning, the numbers, and the retractions.
 
 ## The one thing that is easy to get wrong
@@ -94,8 +94,20 @@ These exist because things failed without them. Follow them.
   BioCLIP-2's training data, and that qualified every number here as an upper
   bound. Tested against images uploaded after its training cutoff with a matched
   control: **−0.27pp, CI [−0.88, +0.35]** (`CONTAMINATION_FINDINGS.md`). Under
-  1pp. Do not re-hedge on it. *Domain* shift — a different camera in different
-  hands — is still untested and is a separate thing.
+  1pp. Do not re-hedge on it. ~~*Domain* shift — a different camera in different
+  hands — is still untested and is a separate thing.~~ **Partly measured now**
+  (`DOMAIN_SHIFT_FINDINGS.md`): *acquisition source* is tested, a different
+  camera in different hands is not. See the next entry.
+- **The head was always trained on one corpus and tested on another, and nobody
+  had noticed.** `build_heads()` fits on Pl@ntNet-300K; every headline number is
+  scored on iNaturalist. The published figures were already the cross-source arm
+  — what was missing was the *within-source control*. Supplied, at a matched
+  training budget over 359 shared species: the deployment direction costs
+  `bioclip2` **−0.001 [−0.029, +0.027]** and `bioclip2_cml4` −0.002, against
+  −0.100 for both BioCLIP v1 variants, −0.163 for `mobileclip2_s0` and −0.179
+  for `mobileclip2_s2`. **Source shift is an encoder-scale phenomenon, not a
+  property of the photographs.** Survives organ-matching and a geographic split.
+  `plantclef24` is *not* measured and must not be interpolated from the trend.
 - **Cosine does not predict accuracy.** Checked three times: it under-predicted
   the cost of int4 (0.932 → −1.3pp), wildly over-predicted distillation (0.956 →
   nothing), and was right once (0.982 → −0.1pp). It bounds how much *could* have
@@ -250,8 +262,14 @@ report drops the label-level share.
 
 - **The size decision** above, now three-way: 17.9 MB (unsafe, and fragile to
   any distribution change), 43 MB (`plantclef24`, slower), 152 MB (fastest).
-- **A clean domain-shift test.** The only untested axis left. Needs photographs
-  taken on a different camera — Tier 1 in `DATA_STRATEGY.md`.
+- **A clean domain-shift test.** ~~The only untested axis left.~~ Still open, but
+  narrower: `DOMAIN_SHIFT_FINDINGS.md` measured the *acquisition-source* axis
+  (Pl@ntNet vs iNaturalist) and found it free at ViT-L. Both corpora are inside
+  BioCLIP-2's pretraining, so that bounds **head** brittleness, not encoder
+  generalisation. What remains is a genuinely novel acquisition process:
+  photographs taken on a different camera in different hands — Tier 1 in
+  `DATA_STRATEGY.md`. **`plantclef24` has no source-shift number**, so the
+  middle of the size decision below is unmeasured on this axis.
 - **Oregon.** 4,570 research-grade species available, 1,175 with ≥100
   observations; the current 499-binomial catalogue overlaps it by 106. A regional
   catalogue is a fresh fetch, not an adaptation.

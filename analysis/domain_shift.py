@@ -42,7 +42,8 @@ def plantnet_table(variant: str) -> pd.DataFrame:
     frames, embs = [], []
     for organ in ORGANS:
         d = load_catalog(organ, variant=variant)
-        frames.append(pd.DataFrame({"species_name": d["species_name"], "split": d["split"]}))
+        frames.append(pd.DataFrame({"species_name": d["species_name"], "split": d["split"],
+                                    "organ": organ}))
         embs.append(d["descriptor"])
     df = pd.concat(frames, ignore_index=True)
     df["emb_row"] = np.arange(len(df))
@@ -168,8 +169,13 @@ def run(variant: str, B: int = B, unit: str = "obs_id", geo_only: bool = False) 
         "inat->pn": per_species(h_in, Epn, pn_te, species),
     }
     boot = paired_bootstrap(cells, species, rng)
-    return {"variant": variant, "B": B, "unit": unit + ("_geo" if geo_only else ""), "n_species": len(species),
-            "cells": cells, "boot": boot, "n_pn_te": len(pn_te), "n_in_te": len(in_te)}
+    return {"variant": variant, "B": B, "unit": unit + ("_geo" if geo_only else ""),
+            "n_species": len(species), "cells": cells, "boot": boot,
+            "n_pn_te": len(pn_te), "n_in_te": len(in_te),
+            # carried so `domain_shift_organ.py` can re-slice the same fitted
+            # heads and the same test rows rather than refitting its own.
+            "species": species, "heads": {"pn": h_pn, "inat": h_in},
+            "test": {"pn": (pn_te, Epn), "inat": (in_te, Eina)}}
 
 
 def report(res: dict) -> pd.DataFrame:
