@@ -59,7 +59,8 @@ of magnitude more data than we need. Everything hard is on the test row.
 
 | source | what it gives | contamination risk | notes |
 |---|---|---|---|
-| **Self-collected field photos** | the only guaranteed-clean test set | **none** | Also the only data that matches deployment: your camera, your framing, the guided-capture flow. 200–500 photos over 30–50 common species would be transformative for confidence in every number in this repo. |
+| ~~**Self-collected field photos**~~ | ~~the only guaranteed-clean test set~~ **struck: no ground truth** | ~~**none**~~ | ~~Also the only data that matches deployment.~~ **This row scored image provenance and forgot label provenance.** Photographing a plant does not identify it. The labels have to come from somewhere, and the available somewhere is iNaturalist community ID — which adds your camera while keeping their labels, and mixes label noise into the one axis the set exists to measure. A clean *image* source with dirty labels is not a test set. The only version that works is one where a third party supplies the determination (below). |
+| **Herbarium specimens via GBIF** | expert-determined, pressed and mounted | moderate (in GBIF) | **The label problem solved by someone else** — an institutional determination on the sheet, not a crowd vote. Fetchable *selectively* by species through the occurrence API (`basisOfRecord=PRESERVED_SPECIMEN`, `mediaType=StillImage`), so it costs a few GB rather than the 100 GB of the bulk competition set. Enormous modality shift: dried, flattened, on a sheet with a scale bar and a label. A brittleness probe, not a proxy for field use. |
 | **Herbarium 2022 (NYBG/FGVC9)** | pressed, dried specimens | low-moderate | Extreme domain shift — a *hard* generalisation probe, not a proxy for field use. Good for measuring how brittle the embedding is. |
 | **BarkVN-50** (`Voxel51/BarkVN-50` on HF) | 50 Vietnamese bark species | low | Non-European, research-collected. Doubles as a genuine out-of-catalog OOD test — exactly the "reject unknown species" case. |
 | **Bark-101 / BarkNet 1.0** | bark texture, ~101 / ~23 species | low | Research-collected rather than citizen-science, so less likely inside GBIF. |
@@ -86,10 +87,14 @@ of magnitude more data than we need. Everything hard is on the test row.
 
 ## Recommended actions
 
-1. **Start a self-collected test set now.** It is the only clean measurement
+1. ~~**Start a self-collected test set now.** It is the only clean measurement
    available, it compounds in value over time, and it is the cheapest item here
-   — a phone and a walk. Even 30 species × 10 plants × 3 organs is enough to
-   detect a large generalisation gap. Prioritise species in the planned catalog.
+   — a phone and a walk.~~ **Retracted.** It is not the cheapest item, because
+   the expensive part is not the walking — it is the identification, which needs
+   a botanist or a crowd, and the available crowd is the corpus the set was
+   supposed to be independent of. Prefer a source that ships its own
+   determinations: **herbarium specimens through the GBIF occurrence API**,
+   fetched selectively by species.
 2. **Add BarkVN-50 and Herbarium as domain-shift probes** before trusting any
    deployment number. Both are downloadable and require no labelling work.
 3. **Use iNat freely for training** the head and the `__OTHER__` class, and for

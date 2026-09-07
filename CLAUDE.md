@@ -291,7 +291,11 @@ report drops the label-level share.
   BioCLIP-2's pretraining, so that bounds **head** brittleness, not encoder
   generalisation. What remains is a genuinely novel acquisition process:
   photographs taken on a different camera in different hands — Tier 1 in
-  `DATA_STRATEGY.md`. ~~**`plantclef24` has no source-shift number**, so the
+  `DATA_STRATEGY.md`. **Self-collected photographs are not that source**: the
+  bottleneck is the determination, not the camera, and the available identifier
+  is the corpus the set is meant to be independent of (retracted in place in
+  `DATA_STRATEGY.md`). Use a source that ships its own labels — herbarium
+  specimens through GBIF, fetched selectively by species. ~~**`plantclef24` has no source-shift number**, so the
   middle of the size decision below is unmeasured on this axis.~~ Measured; see
   above and the size-decision entry.
 - **Oregon.** 4,570 research-grade species available, 1,175 with ≥100
